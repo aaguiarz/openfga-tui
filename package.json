@@ -1,0 +1,22 @@
+{
+  "name": "openfga-tui",
+  "version": "0.1.0",
+  "module": "src/index.tsx",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "start": "bun run src/index.tsx",
+    "dev": "bun --watch src/index.tsx",
+    "test": "bun test"
+  },
+  "dependencies": {
+    "@opentui/core": "^0.1.79",
+    "@opentui/react": "^0.1.79"
+  },
+  "devDependencies": {
+    "@types/bun": "latest"
+  },
+  "peerDependencies": {
+    "typescript": "^5"
+  }
+}
