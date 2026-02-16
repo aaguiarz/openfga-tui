@@ -42,22 +42,6 @@ export function ConnectView({ onConnect, initialServerUrl, initialAuthType }: Co
     auth: buildAuthConfig(),
   }), [serverUrl, buildAuthConfig])
 
-  const handleTestConnection = useCallback(async () => {
-    dispatchStatus({ type: 'test' })
-    try {
-      const config = buildConnectionConfig()
-      const client = new OpenFGAClient(config)
-      const ok = await client.testConnection()
-      if (ok) {
-        dispatchStatus({ type: 'success', message: 'Connection successful!' })
-      } else {
-        dispatchStatus({ type: 'error', message: 'Connection failed - server unreachable or returned error' })
-      }
-    } catch (err: any) {
-      dispatchStatus({ type: 'error', message: err.message || 'Connection failed' })
-    }
-  }, [buildConnectionConfig])
-
   const handleConnect = useCallback(async () => {
     dispatchStatus({ type: 'connect' })
     try {
@@ -71,24 +55,22 @@ export function ConnectView({ onConnect, initialServerUrl, initialAuthType }: Co
         })
         onConnect(config)
       } else {
-        dispatchStatus({ type: 'error', message: 'Connection failed - cannot connect' })
+        dispatchStatus({ type: 'error', message: 'Connection failed - server unreachable or returned error' })
       }
     } catch (err: any) {
       dispatchStatus({ type: 'error', message: err.message || 'Connection failed' })
     }
   }, [buildConnectionConfig, onConnect])
 
-  useKeyboard(useCallback((key: { name: string; ctrl?: boolean }) => {
-    if (key.name === 'return' && key.ctrl) {
+  useKeyboard(useCallback((key: { name: string }) => {
+    if (key.name === 'return') {
       handleConnect()
-    } else if (key.name === 'return') {
-      handleTestConnection()
     } else if (key.name === 'tab') {
       setFocusedField(f => (f + 1) % fieldCount)
     } else if (key.name === 'shift+tab') {
       setFocusedField(f => (f - 1 + fieldCount) % fieldCount)
     }
-  }, [fieldCount, handleConnect, handleTestConnection]))
+  }, [fieldCount, handleConnect]))
 
   const authTypeOptions = [
     { name: 'None', description: 'No authentication', value: 'none' },
@@ -100,9 +82,7 @@ export function ConnectView({ onConnect, initialServerUrl, initialAuthType }: Co
     : status.state === 'error' ? '#ef4444'
     : '#888888'
 
-  const statusMessage = status.state === 'testing' ? 'Testing connection...'
-    : status.state === 'connecting' ? 'Connecting...'
-    : status.state === 'success' ? status.message
+  const statusMessage = status.state === 'connecting' ? 'Connecting...'
     : status.state === 'error' ? status.message
     : ''
 
@@ -117,7 +97,6 @@ export function ConnectView({ onConnect, initialServerUrl, initialAuthType }: Co
           placeholder="http://localhost:8080"
           focused={focusedField === 0}
           onInput={setServerUrl}
-          onSubmit={handleTestConnection}
         />
       </FormField>
 
@@ -138,7 +117,6 @@ export function ConnectView({ onConnect, initialServerUrl, initialAuthType }: Co
             placeholder="Enter API key"
             focused={focusedField === 2}
             onInput={setApiKey}
-            onSubmit={handleTestConnection}
           />
         </FormField>
       )}
@@ -178,8 +156,7 @@ export function ConnectView({ onConnect, initialServerUrl, initialAuthType }: Co
 
       <box height={1} />
       <box flexDirection="row" gap={2}>
-        <text fg="#666666">[Enter] Test Connection</text>
-        <text fg="#666666">[Ctrl+Enter] Connect</text>
+        <text fg="#666666">[Enter] Connect</text>
       </box>
     </box>
   )
