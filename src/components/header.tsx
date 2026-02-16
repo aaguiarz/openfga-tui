@@ -4,24 +4,19 @@ import { getBreadcrumb } from '../lib/navigation.ts'
 interface HeaderProps {
   view: View
   connected: boolean
-  playgroundMode: boolean
 }
 
-export function Header({ view, connected, playgroundMode }: HeaderProps) {
+export function Header({ view, connected }: HeaderProps) {
   const breadcrumb = getBreadcrumb(view)
   const breadcrumbStr = breadcrumb.join(' > ')
 
-  const statusIndicator = playgroundMode
-    ? ' [PLAYGROUND]'
-    : connected
-      ? ' [CONNECTED]'
-      : ' [DISCONNECTED]'
+  const statusIndicator = connected
+    ? ' [CONNECTED]'
+    : ' [DISCONNECTED]'
 
-  const statusColor = playgroundMode
-    ? '#eab308'
-    : connected
-      ? '#22c55e'
-      : '#ef4444'
+  const statusColor = connected
+    ? '#22c55e'
+    : '#ef4444'
 
   return (
     <box

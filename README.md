@@ -2,7 +2,7 @@
 
 A terminal user interface for [OpenFGA](https://openfga.dev) — manage stores, authorization models, tuples, and run queries directly from your terminal.
 
-Built with [Bun](https://bun.sh) and [@opentui/react](https://github.com/nicksrandall/opentui) for a fast, reactive terminal experience with syntax highlighting, vim keybindings, and a playground mode for learning.
+Built with [Bun](https://bun.sh) and [@opentui/react](https://github.com/nicksrandall/opentui) for a fast, reactive terminal experience with syntax highlighting and vim keybindings.
 
 ```
 ┌─ OpenFGA TUI ─────────────────────── Stores > store-abc > Model ─┐
@@ -34,7 +34,6 @@ Built with [Bun](https://bun.sh) and [@opentui/react](https://github.com/nicksra
 - **Model Graph** — ASCII tree visualization of type/relation relationships
 - **Tuple Management** — Browse, add, delete, filter, and paginate tuples with server-side filtering
 - **Query Operations** — Run Check, Expand, List Objects, and List Users queries
-- **Playground Mode** — Explore the TUI with sample data, no server required
 - **Vim Keybindings** — Optional vim-style navigation (j/k, Ctrl+D/U, Shift+G)
 - **Multi-Store Support** — Quick-switch between stores with fuzzy search, bookmarks, and per-store query history
 - **Keyboard Help** — Press `?` on any screen to see available shortcuts
@@ -70,9 +69,6 @@ bun run src/index.tsx --server-url http://localhost:8080
 
 # Connect with API key authentication
 bun run src/index.tsx --server-url http://localhost:8080 --api-key your-api-key
-
-# Start in playground mode (no server needed)
-bun run src/index.tsx --playground
 ```
 
 ### Development mode (auto-reload)
@@ -141,7 +137,6 @@ Run authorization queries across four tabs:
 |---|---|
 | `Tab` / `Shift+Tab` | Next / previous field |
 | `Enter` | Test connection |
-| `Ctrl+P` | Enter playground mode |
 
 ### Stores
 
@@ -202,16 +197,6 @@ When vim keybindings are enabled, additional keys are available:
 | `j` / `k` | Move down / up |
 | `Ctrl+D` / `Ctrl+U` | Page down / up |
 | `Shift+G` | Jump to bottom |
-
-## Playground Mode
-
-Start the TUI without a server connection to explore the interface with sample data:
-
-```bash
-bun run src/index.tsx --playground
-```
-
-The playground includes a pre-configured store with a sample authorization model covering common patterns (users, groups, folders, documents) and 6 sample relationship tuples. All CRUD operations work in-memory.
 
 ## Configuration
 
@@ -286,7 +271,6 @@ src/
     fga-highlight.ts           # FGA DSL syntax highlighter
     model-graph.ts             # ASCII model visualization
     model-editor.ts            # Editor state machine
-    playground.ts              # In-memory mock client
     multi-store.ts             # Store switcher, history, bookmarks
 
     openfga/                   # OpenFGA client library
@@ -308,7 +292,6 @@ src/
     model-graph.test.ts
     multi-store.test.ts
     navigation.test.ts
-    playground.test.ts
     query.test.ts
     store-list.test.ts
     store-overview.test.ts
@@ -331,7 +314,7 @@ bun test src/__tests__/navigation.test.ts
 bun test --filter "keybind"
 ```
 
-**388 tests** across 18 test files covering navigation, configuration, store operations, tuple management, query execution, syntax highlighting, model visualization, editor state, keybindings, multi-store features, and the playground client.
+Tests cover navigation, configuration, store operations, tuple management, query execution, syntax highlighting, model visualization, editor state, keybindings, and multi-store features.
 
 ## Architecture
 

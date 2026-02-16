@@ -10,12 +10,11 @@ type AuthType = 'none' | 'api-key' | 'oidc'
 
 export interface ConnectViewProps {
   onConnect: (config: ConnectionConfig) => void
-  onPlayground: () => void
   initialServerUrl?: string
   initialAuthType?: AuthType
 }
 
-export function ConnectView({ onConnect, onPlayground, initialServerUrl, initialAuthType }: ConnectViewProps) {
+export function ConnectView({ onConnect, initialServerUrl, initialAuthType }: ConnectViewProps) {
   const [serverUrl, setServerUrl] = useState(initialServerUrl || 'http://localhost:8080')
   const [authType, setAuthType] = useState<AuthType>(initialAuthType || 'none')
   const [apiKey, setApiKey] = useState('')
@@ -84,10 +83,8 @@ export function ConnectView({ onConnect, onPlayground, initialServerUrl, initial
       setFocusedField(f => (f + 1) % fieldCount)
     } else if (key.name === 'shift+tab') {
       setFocusedField(f => (f - 1 + fieldCount) % fieldCount)
-    } else if (key.name === 'ctrl+p') {
-      onPlayground()
     }
-  }, [fieldCount, onPlayground]))
+  }, [fieldCount]))
 
   const authTypeOptions = [
     { name: 'None', description: 'No authentication', value: 'none' },
@@ -178,7 +175,6 @@ export function ConnectView({ onConnect, onPlayground, initialServerUrl, initial
       <box height={1} />
       <box flexDirection="row" gap={2}>
         <text fg="#666666">[Enter] Test Connection</text>
-        <text fg="#666666">[Ctrl+P] Playground Mode</text>
       </box>
     </box>
   )

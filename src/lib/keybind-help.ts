@@ -16,7 +16,6 @@ export function getKeybindSections(view: View): KeybindSection[] {
         bindings: [
           { key: 'Tab / Shift+Tab', description: 'Next / previous field' },
           { key: 'Enter', description: 'Test connection' },
-          { key: 'Ctrl+P', description: 'Enter playground mode' },
         ],
       })
       break

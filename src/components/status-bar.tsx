@@ -5,21 +5,16 @@ interface StatusBarProps {
   view: View
   serverUrl?: string
   storeName?: string
-  playgroundMode: boolean
 }
 
-export function StatusBar({ view, serverUrl, storeName, playgroundMode }: StatusBarProps) {
+export function StatusBar({ view, serverUrl, storeName }: StatusBarProps) {
   const keybindHints = getViewKeybindHints(view)
 
-  const connectionLabel = playgroundMode
-    ? 'Playground Mode'
-    : serverUrl || 'Not connected'
+  const connectionLabel = serverUrl || 'Not connected'
 
-  const connectionColor = playgroundMode
-    ? '#eab308'
-    : serverUrl
-      ? '#22c55e'
-      : '#ef4444'
+  const connectionColor = serverUrl
+    ? '#22c55e'
+    : '#ef4444'
 
   return (
     <box

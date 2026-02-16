@@ -43,7 +43,6 @@ export async function saveConfig(config: TuiConfig): Promise<void> {
 export interface CliArgs {
   serverUrl?: string
   apiKey?: string
-  playground?: boolean
 }
 
 export function parseCliArgs(argv: string[]): CliArgs {
@@ -57,9 +56,6 @@ export function parseCliArgs(argv: string[]): CliArgs {
         break
       case '--api-key':
         args.apiKey = argv[++i]
-        break
-      case '--playground':
-        args.playground = true
         break
     }
   }

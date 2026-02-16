@@ -12,9 +12,8 @@ const config = mergeConfigWithCliArgs(savedConfig, args)
 
 // Determine initial state
 let initialConfig: ConnectionConfig | undefined
-let initialPlayground = args.playground || false
 
-if (!initialPlayground && config.serverUrl) {
+if (config.serverUrl) {
   initialConfig = {
     serverUrl: config.serverUrl,
     auth: config.auth || { type: 'none' },
@@ -27,8 +26,5 @@ const renderer = await createCliRenderer({
 })
 
 createRoot(renderer).render(
-  <App
-    initialPlayground={initialPlayground}
-    initialConfig={initialConfig}
-  />
+  <App initialConfig={initialConfig} />
 )

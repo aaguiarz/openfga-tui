@@ -20,11 +20,6 @@ describe('parseCliArgs', () => {
     expect(args.apiKey).toBe('my-secret')
   })
 
-  test('parses --playground', () => {
-    const args = parseCliArgs(['--playground'])
-    expect(args.playground).toBe(true)
-  })
-
   test('parses multiple args', () => {
     const args = parseCliArgs([
       '--server-url', 'http://localhost:8080',
@@ -38,7 +33,6 @@ describe('parseCliArgs', () => {
     const args = parseCliArgs([])
     expect(args.serverUrl).toBeUndefined()
     expect(args.apiKey).toBeUndefined()
-    expect(args.playground).toBeUndefined()
   })
 
   test('ignores unknown args', () => {

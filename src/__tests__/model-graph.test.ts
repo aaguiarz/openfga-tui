@@ -1,6 +1,5 @@
 import { describe, expect, test } from 'bun:test'
 import { renderModelGraph, graphToPlainText } from '../lib/model-graph.ts'
-import { PLAYGROUND_MODEL } from '../lib/playground.ts'
 import type { AuthorizationModel } from '../lib/openfga/types.ts'
 
 describe('renderModelGraph', () => {
@@ -156,10 +155,60 @@ describe('renderModelGraph', () => {
     expect(text).toContain('group#member')
   })
 
-  test('renders the playground model successfully', () => {
-    const lines = renderModelGraph(PLAYGROUND_MODEL, 'Playground Store')
+  test('renders a complex multi-type model successfully', () => {
+    const model: AuthorizationModel = {
+      id: 'complex-model-01',
+      schema_version: '1.1',
+      type_definitions: [
+        { type: 'user' },
+        {
+          type: 'group',
+          relations: { member: { this: {} } },
+          metadata: { relations: { member: { directly_related_user_types: [{ type: 'user' }] } } },
+        },
+        {
+          type: 'folder',
+          relations: {
+            owner: { this: {} },
+            viewer: { union: { child: [{ this: {} }, { computedUserset: { relation: 'owner' } }] } },
+          },
+          metadata: {
+            relations: {
+              owner: { directly_related_user_types: [{ type: 'user' }] },
+              viewer: { directly_related_user_types: [{ type: 'user' }, { type: 'group', relation: 'member' }] },
+            },
+          },
+        },
+        {
+          type: 'document',
+          relations: {
+            owner: { this: {} },
+            parent: { this: {} },
+            writer: { union: { child: [{ this: {} }, { computedUserset: { relation: 'owner' } }] } },
+            reader: {
+              union: {
+                child: [
+                  { this: {} },
+                  { computedUserset: { relation: 'writer' } },
+                  { tupleToUserset: { tupleset: { relation: 'parent' }, computedUserset: { relation: 'viewer' } } },
+                ],
+              },
+            },
+          },
+          metadata: {
+            relations: {
+              owner: { directly_related_user_types: [{ type: 'user' }] },
+              parent: { directly_related_user_types: [{ type: 'folder' }] },
+              writer: { directly_related_user_types: [{ type: 'user' }] },
+              reader: { directly_related_user_types: [{ type: 'user' }, { type: 'user', wildcard: {} }] },
+            },
+          },
+        },
+      ],
+    }
+    const lines = renderModelGraph(model, 'Test Store')
     const text = graphToPlainText(lines)
-    expect(text).toContain('Playground Store')
+    expect(text).toContain('Test Store')
     expect(text).toContain('user')
     expect(text).toContain('group')
     expect(text).toContain('folder')

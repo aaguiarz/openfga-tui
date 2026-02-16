@@ -9,48 +9,34 @@ import { ModelViewer } from './views/model-viewer.tsx'
 import { TuplesView } from './views/tuples.tsx'
 import { QueriesView } from './views/queries.tsx'
 import { OpenFGAClient } from './lib/openfga/client.ts'
-import { PlaygroundClient } from './lib/playground.ts'
 import { navigationReducer, type View } from './lib/navigation.ts'
 import type { ConnectionConfig } from './lib/openfga/types.ts'
 
 interface AppProps {
-  initialPlayground?: boolean
   initialConfig?: ConnectionConfig
 }
 
-export function App({ initialPlayground, initialConfig }: AppProps) {
+export function App({ initialConfig }: AppProps) {
   const [view, dispatch] = useReducer(
     navigationReducer,
-    initialPlayground || initialConfig
+    initialConfig
       ? { kind: 'stores' } as View
       : { kind: 'connect' } as View
   )
   const [connected, setConnected] = useState(!!initialConfig)
-  const [playgroundMode, setPlaygroundMode] = useState(!!initialPlayground)
   const [serverUrl, setServerUrl] = useState<string | undefined>(initialConfig?.serverUrl)
   const [storeName, setStoreName] = useState<string | undefined>(undefined)
 
-  const clientRef = useRef<OpenFGAClient | PlaygroundClient>(
-    initialPlayground
-      ? new PlaygroundClient()
-      : initialConfig
-        ? new OpenFGAClient(initialConfig)
-        : null as any
+  const clientRef = useRef<OpenFGAClient>(
+    initialConfig
+      ? new OpenFGAClient(initialConfig)
+      : null as any
   )
 
   const handleConnect = useCallback((config: ConnectionConfig) => {
     clientRef.current = new OpenFGAClient(config)
     setConnected(true)
-    setPlaygroundMode(false)
     setServerUrl(config.serverUrl)
-    dispatch({ type: 'navigate', view: { kind: 'stores' } })
-  }, [])
-
-  const handlePlayground = useCallback(() => {
-    clientRef.current = new PlaygroundClient()
-    setConnected(false)
-    setPlaygroundMode(true)
-    setServerUrl(undefined)
     dispatch({ type: 'navigate', view: { kind: 'stores' } })
   }, [])
 
@@ -67,7 +53,6 @@ export function App({ initialPlayground, initialConfig }: AppProps) {
       <Header
         view={view}
         connected={connected}
-        playgroundMode={playgroundMode}
       />
       <box flexGrow={1} flexDirection="column" padding={1}>
         <ViewContent
@@ -76,7 +61,6 @@ export function App({ initialPlayground, initialConfig }: AppProps) {
           client={clientRef.current}
           serverUrl={serverUrl}
           onConnect={handleConnect}
-          onPlayground={handlePlayground}
           setStoreName={setStoreName}
         />
       </box>
@@ -84,7 +68,6 @@ export function App({ initialPlayground, initialConfig }: AppProps) {
         view={view}
         serverUrl={serverUrl}
         storeName={storeName}
-        playgroundMode={playgroundMode}
       />
     </box>
   )
@@ -93,20 +76,18 @@ export function App({ initialPlayground, initialConfig }: AppProps) {
 interface ViewContentProps {
   view: View
   dispatch: React.Dispatch<any>
-  client: OpenFGAClient | PlaygroundClient
+  client: OpenFGAClient
   serverUrl?: string
   onConnect: (config: ConnectionConfig) => void
-  onPlayground: () => void
   setStoreName: (v: string | undefined) => void
 }
 
-function ViewContent({ view, dispatch, client, serverUrl, onConnect, onPlayground, setStoreName }: ViewContentProps) {
+function ViewContent({ view, dispatch, client, serverUrl, onConnect, setStoreName }: ViewContentProps) {
   switch (view.kind) {
     case 'connect':
       return (
         <ConnectView
           onConnect={onConnect}
-          onPlayground={onPlayground}
           initialServerUrl={serverUrl}
         />
       )
