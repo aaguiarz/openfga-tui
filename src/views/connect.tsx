@@ -78,15 +78,17 @@ export function ConnectView({ onConnect, initialServerUrl, initialAuthType }: Co
     }
   }, [buildConnectionConfig, onConnect])
 
-  useKeyboard(useCallback((key: { name: string }) => {
-    if (key.name === 'tab') {
+  useKeyboard(useCallback((key: { name: string; ctrl?: boolean }) => {
+    if (key.name === 'return' && key.ctrl) {
+      handleConnect()
+    } else if (key.name === 'return') {
+      handleTestConnection()
+    } else if (key.name === 'tab') {
       setFocusedField(f => (f + 1) % fieldCount)
     } else if (key.name === 'shift+tab') {
       setFocusedField(f => (f - 1 + fieldCount) % fieldCount)
-    } else if (key.name === 'ctrl+return') {
-      handleConnect()
     }
-  }, [fieldCount, handleConnect]))
+  }, [fieldCount, handleConnect, handleTestConnection]))
 
   const authTypeOptions = [
     { name: 'None', description: 'No authentication', value: 'none' },
