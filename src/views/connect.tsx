@@ -83,8 +83,10 @@ export function ConnectView({ onConnect, initialServerUrl, initialAuthType }: Co
       setFocusedField(f => (f + 1) % fieldCount)
     } else if (key.name === 'shift+tab') {
       setFocusedField(f => (f - 1 + fieldCount) % fieldCount)
+    } else if (key.name === 'ctrl+return') {
+      handleConnect()
     }
-  }, [fieldCount]))
+  }, [fieldCount, handleConnect]))
 
   const authTypeOptions = [
     { name: 'None', description: 'No authentication', value: 'none' },
@@ -175,6 +177,7 @@ export function ConnectView({ onConnect, initialServerUrl, initialAuthType }: Co
       <box height={1} />
       <box flexDirection="row" gap={2}>
         <text fg="#666666">[Enter] Test Connection</text>
+        <text fg="#666666">[Ctrl+Enter] Connect</text>
       </box>
     </box>
   )
