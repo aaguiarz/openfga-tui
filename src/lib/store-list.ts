@@ -73,6 +73,16 @@ export function getSelectedStore(state: StoreListState): Store | undefined {
   return undefined
 }
 
+/** Create a synthetic store entry for a scoped storeId (e.g. FGA Cloud) */
+export function createScopedStoreEntry(storeId: string): Store {
+  return {
+    id: storeId,
+    name: storeId,
+    created_at: '',
+    updated_at: '',
+  }
+}
+
 export function formatStoreDate(dateStr: string): string {
   try {
     const date = new Date(dateStr)

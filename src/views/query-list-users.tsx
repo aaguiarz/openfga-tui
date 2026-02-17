@@ -3,13 +3,15 @@ import { useKeyboard } from '@opentui/react'
 import { FormField } from '../components/form-field.tsx'
 import type { OpenFGAClient } from '../lib/openfga/client.ts'
 import type { User } from '../lib/openfga/types.ts'
+import type { ModelPlaceholders } from '../lib/model-placeholders.ts'
 
 interface QueryListUsersProps {
   client: OpenFGAClient
   storeId: string
+  placeholders: ModelPlaceholders
 }
 
-export function QueryListUsers({ client, storeId }: QueryListUsersProps) {
+export function QueryListUsers({ client, storeId, placeholders: ph }: QueryListUsersProps) {
   const [objectType, setObjectType] = useState('')
   const [objectId, setObjectId] = useState('')
   const [relation, setRelation] = useState('')
@@ -53,16 +55,16 @@ export function QueryListUsers({ client, storeId }: QueryListUsersProps) {
       <text fg="#60a5fa" attributes={1}>List Users</text>
 
       <FormField label="Object Type">
-        <input value={objectType} placeholder="document" focused={focusedField === 0} onInput={setObjectType} onSubmit={handleRun} width={30} />
+        <input value={objectType} placeholder={ph.objectType} focused={focusedField === 0} onInput={setObjectType} onSubmit={handleRun} width={30} />
       </FormField>
       <FormField label="Object ID">
-        <input value={objectId} placeholder="budget" focused={focusedField === 1} onInput={setObjectId} onSubmit={handleRun} width={40} />
+        <input value={objectId} placeholder={ph.objectId} focused={focusedField === 1} onInput={setObjectId} onSubmit={handleRun} width={40} />
       </FormField>
       <FormField label="Relation">
-        <input value={relation} placeholder="reader" focused={focusedField === 2} onInput={setRelation} onSubmit={handleRun} width={30} />
+        <input value={relation} placeholder={ph.relation} focused={focusedField === 2} onInput={setRelation} onSubmit={handleRun} width={30} />
       </FormField>
       <FormField label="User Filter Type">
-        <input value={userFilterType} placeholder="user" focused={focusedField === 3} onInput={setUserFilterType} onSubmit={handleRun} width={30} />
+        <input value={userFilterType} placeholder={ph.userType} focused={focusedField === 3} onInput={setUserFilterType} onSubmit={handleRun} width={30} />
       </FormField>
 
       <box height={1} />

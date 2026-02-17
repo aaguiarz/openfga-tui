@@ -1,21 +1,33 @@
-import { useState, useCallback } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useKeyboard } from '@opentui/react'
 import type { OpenFGAClient } from '../lib/openfga/client.ts'
+import type { AuthorizationModel } from '../lib/openfga/types.ts'
+import { getModelPlaceholders } from '../lib/model-placeholders.ts'
 import { QueryCheck } from './query-check.tsx'
-import { QueryExpand } from './query-expand.tsx'
+import { QueryRead } from './query-read.tsx'
 import { QueryListObjects } from './query-list-objects.tsx'
 import { QueryListUsers } from './query-list-users.tsx'
 
-const TABS = ['Check', 'Expand', 'List Objects', 'List Users'] as const
+const TABS = ['Check', 'Read', 'List Objects', 'List Users'] as const
 type QueryTab = typeof TABS[number]
 
 interface QueriesViewProps {
   client: OpenFGAClient
   storeId: string
+  onBack: () => void
 }
 
-export function QueriesView({ client, storeId }: QueriesViewProps) {
+export function QueriesView({ client, storeId, onBack }: QueriesViewProps) {
   const [activeTab, setActiveTab] = useState<QueryTab>('Check')
+  const [model, setModel] = useState<AuthorizationModel | undefined>()
+
+  useEffect(() => {
+    client.listAuthorizationModels(storeId, 1).then(res => {
+      if (res.authorization_models?.[0]) setModel(res.authorization_models[0])
+    }).catch(() => {})
+  }, [client, storeId])
+
+  const ph = getModelPlaceholders(model)
 
   useKeyboard(useCallback((key: { name: string }) => {
     switch (key.name) {
@@ -23,7 +35,7 @@ export function QueriesView({ client, storeId }: QueriesViewProps) {
         setActiveTab('Check')
         break
       case '2':
-        setActiveTab('Expand')
+        setActiveTab('Read')
         break
       case '3':
         setActiveTab('List Objects')
@@ -31,8 +43,11 @@ export function QueriesView({ client, storeId }: QueriesViewProps) {
       case '4':
         setActiveTab('List Users')
         break
+      case 'escape':
+        onBack()
+        break
     }
-  }, []))
+  }, [onBack]))
 
   const tabOptions = TABS.map(tab => ({
     name: tab,
@@ -60,10 +75,10 @@ export function QueriesView({ client, storeId }: QueriesViewProps) {
       <text fg="#444444">{'─'.repeat(76)}</text>
 
       <box flexGrow={1}>
-        {activeTab === 'Check' && <QueryCheck client={client} storeId={storeId} />}
-        {activeTab === 'Expand' && <QueryExpand client={client} storeId={storeId} />}
-        {activeTab === 'List Objects' && <QueryListObjects client={client} storeId={storeId} />}
-        {activeTab === 'List Users' && <QueryListUsers client={client} storeId={storeId} />}
+        {activeTab === 'Check' && <QueryCheck client={client} storeId={storeId} placeholders={ph} />}
+        {activeTab === 'Read' && <QueryRead client={client} storeId={storeId} placeholders={ph} />}
+        {activeTab === 'List Objects' && <QueryListObjects client={client} storeId={storeId} placeholders={ph} />}
+        {activeTab === 'List Users' && <QueryListUsers client={client} storeId={storeId} placeholders={ph} />}
       </box>
     </box>
   )

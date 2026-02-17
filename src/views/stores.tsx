@@ -3,18 +3,24 @@ import { useKeyboard } from '@opentui/react'
 import { Spinner } from '../components/spinner.tsx'
 import { Confirm } from '../components/confirm.tsx'
 import type { OpenFGAClient } from '../lib/openfga/client.ts'
-import { storeListReducer, getSelectedStore, formatStoreDate, type StoreListState } from '../lib/store-list.ts'
+import { storeListReducer, getSelectedStore, formatStoreDate, createScopedStoreEntry, type StoreListState } from '../lib/store-list.ts'
 
 interface StoresViewProps {
   client: OpenFGAClient
   onSelectStore: (storeId: string, storeName: string) => void
+  scopedStoreId?: string
 }
 
-export function StoresView({ client, onSelectStore }: StoresViewProps) {
+export function StoresView({ client, onSelectStore, scopedStoreId }: StoresViewProps) {
   const [state, dispatch] = useReducer(storeListReducer, { status: 'loading' } as StoreListState)
   const [createName, setCreateName] = useState('')
 
   const fetchStores = useCallback(async () => {
+    if (scopedStoreId) {
+      // Connection is scoped to a single store (e.g. FGA Cloud)
+      dispatch({ type: 'loaded', stores: [createScopedStoreEntry(scopedStoreId)] })
+      return
+    }
     dispatch({ type: 'load' })
     try {
       const response = await client.listStores()
@@ -22,7 +28,7 @@ export function StoresView({ client, onSelectStore }: StoresViewProps) {
     } catch (err: any) {
       dispatch({ type: 'error', message: err.message || 'Failed to load stores' })
     }
-  }, [client])
+  }, [client, scopedStoreId])
 
   useEffect(() => {
     fetchStores()
@@ -139,7 +145,7 @@ export function StoresView({ client, onSelectStore }: StoresViewProps) {
           {/* Header */}
           <box flexDirection="row" gap={2}>
             <text fg="#888888" width={30}>Name</text>
-            <text fg="#888888" width={28}>ID</text>
+            <text fg="#888888" width={30}>ID</text>
             <text fg="#888888" width={16}>Created</text>
           </box>
           <text fg="#444444">{'─'.repeat(76)}</text>
@@ -154,7 +160,7 @@ export function StoresView({ client, onSelectStore }: StoresViewProps) {
                 return (
                   <box key={store.id} flexDirection="row" gap={2} backgroundColor={bg}>
                     <text fg={fg} width={30}>{store.name}</text>
-                    <text fg="#888888" width={28}>{store.id.length > 24 ? store.id.slice(0, 24) + '...' : store.id}</text>
+                    <text fg="#888888" width={30}>{store.id}</text>
                     <text fg="#888888" width={16}>{formatStoreDate(store.created_at)}</text>
                   </box>
                 )

@@ -3,7 +3,7 @@ import { useKeyboard } from '@opentui/react'
 import { FormField } from '../components/form-field.tsx'
 import { OpenFGAClient } from '../lib/openfga/client.ts'
 import type { AuthConfig, ConnectionConfig } from '../lib/openfga/types.ts'
-import { saveConfig, saveConnection, connectionToConfig, type SavedConnection } from '../lib/config.ts'
+import { saveConnection, connectionToConfig, type SavedConnection } from '../lib/config.ts'
 import { formStatusReducer } from '../lib/form-status.ts'
 
 type AuthType = 'none' | 'api-key' | 'oidc'
@@ -14,9 +14,10 @@ export interface ConnectViewProps {
   savedConnections?: SavedConnection[]
   initialServerUrl?: string
   initialAuthType?: AuthType
+  onQuit: () => void
 }
 
-export function ConnectView({ onConnect, savedConnections, initialServerUrl, initialAuthType }: ConnectViewProps) {
+export function ConnectView({ onConnect, savedConnections, initialServerUrl, initialAuthType, onQuit }: ConnectViewProps) {
   const hasSaved = savedConnections && savedConnections.length > 0
   const [mode, setMode] = useState<ConnectMode>(hasSaved ? 'picker' : 'form')
   const [selectedIdx, setSelectedIdx] = useState(0)
@@ -28,6 +29,7 @@ export function ConnectView({ onConnect, savedConnections, initialServerUrl, ini
   const [tokenUrl, setTokenUrl] = useState('')
   const [clientId, setClientId] = useState('')
   const [clientSecret, setClientSecret] = useState('')
+  const [audience, setAudience] = useState('')
   const [status, dispatchStatus] = useReducer(formStatusReducer, { state: 'idle' })
   const [focusedField, setFocusedField] = useState(0)
 
@@ -35,7 +37,7 @@ export function ConnectView({ onConnect, savedConnections, initialServerUrl, ini
   const [saveName, setSaveName] = useState('')
   const [pendingConfig, setPendingConfig] = useState<ConnectionConfig | null>(null)
 
-  const fieldCount = authType === 'oidc' ? 5 : authType === 'api-key' ? 3 : 2
+  const fieldCount = authType === 'oidc' ? 6 : authType === 'api-key' ? 3 : 2
 
   const buildAuthConfig = useCallback((): AuthConfig => {
     switch (authType) {
@@ -44,9 +46,9 @@ export function ConnectView({ onConnect, savedConnections, initialServerUrl, ini
       case 'api-key':
         return { type: 'api-key', apiKey }
       case 'oidc':
-        return { type: 'oidc', clientId, clientSecret, tokenUrl }
+        return { type: 'oidc', clientId, clientSecret, tokenUrl, ...(audience ? { audience } : {}) }
     }
-  }, [authType, apiKey, clientId, clientSecret, tokenUrl])
+  }, [authType, apiKey, clientId, clientSecret, tokenUrl, audience])
 
   const buildConnectionConfig = useCallback((): ConnectionConfig => ({
     serverUrl,
@@ -59,10 +61,6 @@ export function ConnectView({ onConnect, savedConnections, initialServerUrl, ini
       const client = new OpenFGAClient(config)
       const ok = await client.testConnection()
       if (ok) {
-        await saveConfig({
-          serverUrl: config.serverUrl,
-          auth: config.auth,
-        })
         onConnect(config)
       } else {
         dispatchStatus({ type: 'error', message: 'Connection failed - server unreachable or returned error' })
@@ -79,10 +77,6 @@ export function ConnectView({ onConnect, savedConnections, initialServerUrl, ini
       const client = new OpenFGAClient(config)
       const ok = await client.testConnection()
       if (ok) {
-        await saveConfig({
-          serverUrl: config.serverUrl,
-          auth: config.auth,
-        })
         setPendingConfig(config)
         setMode('save-prompt')
       } else {
@@ -128,6 +122,8 @@ export function ConnectView({ onConnect, savedConnections, initialServerUrl, ini
           setMode('form')
           dispatchStatus({ type: 'reset' })
         }
+      } else if (key.name === 'q') {
+        onQuit()
       }
     } else if (mode === 'form') {
       if (key.name === 'return') {
@@ -147,7 +143,7 @@ export function ConnectView({ onConnect, savedConnections, initialServerUrl, ini
         handleSkipSave()
       }
     }
-  }, [mode, selectedIdx, pickerItemCount, savedConnections, fieldCount, hasSaved, doConnect, handleFormConnect, handleSaveAndConnect, handleSkipSave]))
+  }, [mode, selectedIdx, pickerItemCount, savedConnections, fieldCount, hasSaved, doConnect, handleFormConnect, handleSaveAndConnect, handleSkipSave, onQuit]))
 
   const authTypeOptions = [
     { name: 'None', description: 'No authentication', value: 'none' },
@@ -228,7 +224,7 @@ export function ConnectView({ onConnect, savedConnections, initialServerUrl, ini
         <box height={1} />
         {statusMessage && <text fg={statusColor}>{statusMessage}</text>}
         <box flexDirection="row" gap={2}>
-          <text fg="#666666">[↑↓] select  [Enter] connect</text>
+          <text fg="#666666">[↑↓] select  [Enter] connect  [q] quit</text>
         </box>
       </box>
     )
@@ -298,6 +294,15 @@ export function ConnectView({ onConnect, savedConnections, initialServerUrl, ini
               placeholder="Enter client secret"
               focused={focusedField === 4}
               onInput={setClientSecret}
+              width={60}
+            />
+          </FormField>
+          <FormField label="Audience">
+            <input
+              value={audience}
+              placeholder="https://api.example.com/ (optional)"
+              focused={focusedField === 5}
+              onInput={setAudience}
               width={60}
             />
           </FormField>

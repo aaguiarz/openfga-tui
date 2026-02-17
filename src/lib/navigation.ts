@@ -34,25 +34,22 @@ export function getParentView(view: View): View {
   }
 }
 
-export function getBreadcrumb(view: View): string[] {
+export function getBreadcrumb(view: View, storeName?: string): string[] {
+  const storeLabel = storeName || ('storeId' in view ? view.storeId : '')
   switch (view.kind) {
     case 'connect':
       return ['Connect']
     case 'stores':
       return ['Stores']
     case 'store-overview':
-      return ['Stores', truncateId(view.storeId)]
+      return ['Stores', storeLabel]
     case 'model':
-      return ['Stores', truncateId(view.storeId), 'Model']
+      return ['Stores', storeLabel, 'Model']
     case 'tuples':
-      return ['Stores', truncateId(view.storeId), 'Tuples']
+      return ['Stores', storeLabel, 'Tuples']
     case 'queries':
-      return ['Stores', truncateId(view.storeId), 'Queries']
+      return ['Stores', storeLabel, 'Queries']
   }
-}
-
-function truncateId(id: string): string {
-  return id.length > 12 ? id.slice(0, 12) + '...' : id
 }
 
 export function getViewKeybindHints(view: View): string {

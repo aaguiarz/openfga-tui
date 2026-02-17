@@ -125,10 +125,15 @@ describe('getBreadcrumb', () => {
     ])
   })
 
-  test('store-overview breadcrumb truncates long ID', () => {
+  test('store-overview breadcrumb shows full ID', () => {
     const longId = '01HXYZ1234567890ABCDEF'
     const result = getBreadcrumb({ kind: 'store-overview', storeId: longId })
-    expect(result[1]).toBe('01HXYZ123456...')
+    expect(result[1]).toBe(longId)
+  })
+
+  test('breadcrumb uses storeName when provided', () => {
+    const result = getBreadcrumb({ kind: 'tuples', storeId: '01HXYZ1234567890ABCDEF' }, 'my-store')
+    expect(result).toEqual(['Stores', 'my-store', 'Tuples'])
   })
 
   test('model breadcrumb', () => {

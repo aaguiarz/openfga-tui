@@ -90,7 +90,7 @@ export function getKeybindSections(view: View): KeybindSection[] {
         title: 'Tabs',
         bindings: [
           { key: '1', description: 'Check' },
-          { key: '2', description: 'Expand' },
+          { key: '2', description: 'Read' },
           { key: '3', description: 'List Objects' },
           { key: '4', description: 'List Users' },
         ],

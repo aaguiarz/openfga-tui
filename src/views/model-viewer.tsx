@@ -6,6 +6,7 @@ import type { OpenFGAClient } from '../lib/openfga/client.ts'
 import type { AuthorizationModel } from '../lib/openfga/types.ts'
 import { modelToDsl } from '../lib/openfga/dsl-converter.ts'
 import { highlightFgaDsl } from '../lib/fga-highlight.ts'
+import { copyToClipboard } from '../lib/clipboard.ts'
 
 const DEFAULT_MODEL = `model
   schema 1.1
@@ -79,14 +80,7 @@ export function ModelViewer({ client, storeId }: ModelViewerProps) {
       case 'y': {
         const model = models[selectedIndex]
         if (model) {
-          const dsl = modelToDsl(model)
-          try {
-            const proc = Bun.spawn(['pbcopy'], { stdin: 'pipe' })
-            proc.stdin.write(dsl)
-            proc.stdin.end()
-          } catch {
-            // Silently fail if clipboard not available
-          }
+          copyToClipboard(modelToDsl(model))
         }
         break
       }

@@ -3,9 +3,6 @@ import { join } from 'path'
 import { mkdirSync, rmSync, existsSync } from 'fs'
 import {
   parseCliArgs,
-  mergeConfigWithCliArgs,
-  loadConfig,
-  saveConfig,
   connectionToConfig,
   type TuiConfig,
   type SavedConnection,
@@ -22,6 +19,11 @@ describe('parseCliArgs', () => {
     expect(args.apiKey).toBe('my-secret')
   })
 
+  test('parses --connection', () => {
+    const args = parseCliArgs(['--connection', 'my-server'])
+    expect(args.connection).toBe('my-server')
+  })
+
   test('parses multiple args', () => {
     const args = parseCliArgs([
       '--server-url', 'http://localhost:8080',
@@ -35,6 +37,7 @@ describe('parseCliArgs', () => {
     const args = parseCliArgs([])
     expect(args.serverUrl).toBeUndefined()
     expect(args.apiKey).toBeUndefined()
+    expect(args.connection).toBeUndefined()
   })
 
   test('ignores unknown args', () => {
@@ -43,46 +46,7 @@ describe('parseCliArgs', () => {
   })
 })
 
-describe('mergeConfigWithCliArgs', () => {
-  test('CLI args override config server URL', () => {
-    const config: TuiConfig = {
-      serverUrl: 'http://saved:8080',
-      auth: { type: 'none' },
-    }
-    const args = { serverUrl: 'http://override:9090' }
-    const merged = mergeConfigWithCliArgs(config, args)
-    expect(merged.serverUrl).toBe('http://override:9090')
-  })
-
-  test('CLI API key overrides config auth', () => {
-    const config: TuiConfig = {
-      serverUrl: 'http://saved:8080',
-      auth: { type: 'none' },
-    }
-    const args = { apiKey: 'new-key' }
-    const merged = mergeConfigWithCliArgs(config, args)
-    expect(merged.auth).toEqual({ type: 'api-key', apiKey: 'new-key' })
-  })
-
-  test('preserves config when no CLI args', () => {
-    const config: TuiConfig = {
-      serverUrl: 'http://saved:8080',
-      auth: { type: 'api-key', apiKey: 'saved-key' },
-      lastStoreId: 'store-123',
-    }
-    const merged = mergeConfigWithCliArgs(config, {})
-    expect(merged).toEqual(config)
-  })
-
-  test('does not modify original config', () => {
-    const config: TuiConfig = { serverUrl: 'http://saved:8080' }
-    const args = { serverUrl: 'http://new:9090' }
-    mergeConfigWithCliArgs(config, args)
-    expect(config.serverUrl).toBe('http://saved:8080')
-  })
-})
-
-describe('loadConfig and saveConfig', () => {
+describe('config file format', () => {
   const testDir = join('/tmp/claude', 'openfga-tui-test-config')
   const testConfigPath = join(testDir, 'config.json')
 
@@ -98,44 +62,13 @@ describe('loadConfig and saveConfig', () => {
     }
   })
 
-  test('loadConfig returns empty object for missing file', async () => {
-    // Use a non-existent path - we can't easily mock the path constants
-    // but we test the behavior via parseCliArgs and mergeConfigWithCliArgs
-    // The actual file I/O is tested via saveConfig + manual read
+  test('empty config is valid', () => {
     const config: TuiConfig = {}
     expect(config).toEqual({})
   })
 
-  test('saveConfig and manual read roundtrip', async () => {
+  test('config with connections roundtrips correctly', async () => {
     const config: TuiConfig = {
-      serverUrl: 'http://localhost:8080',
-      auth: { type: 'api-key', apiKey: 'test-key' },
-      lastStoreId: 'store-123',
-    }
-
-    mkdirSync(testDir, { recursive: true })
-    await Bun.write(testConfigPath, JSON.stringify(config, null, 2))
-
-    const readBack = JSON.parse(await Bun.file(testConfigPath).text())
-    expect(readBack).toEqual(config)
-  })
-
-  test('config JSON format is human-readable (2-space indent)', async () => {
-    const config: TuiConfig = {
-      serverUrl: 'http://localhost:8080',
-    }
-
-    mkdirSync(testDir, { recursive: true })
-    await Bun.write(testConfigPath, JSON.stringify(config, null, 2))
-
-    const text = await Bun.file(testConfigPath).text()
-    expect(text).toContain('  "serverUrl"')
-  })
-
-  test('config with saved connections roundtrips correctly', async () => {
-    const config: TuiConfig = {
-      serverUrl: 'http://localhost:8080',
-      auth: { type: 'none' },
       connections: [
         { name: 'local', serverUrl: 'http://localhost:8080', auth: { type: 'none' } },
         { name: 'prod', serverUrl: 'https://fga.example.com', auth: { type: 'api-key', apiKey: 'key123' } },
@@ -150,6 +83,34 @@ describe('loadConfig and saveConfig', () => {
     expect(readBack.connections[0].name).toBe('local')
     expect(readBack.connections[1].name).toBe('prod')
     expect(readBack.connections[1].auth).toEqual({ type: 'api-key', apiKey: 'key123' })
+  })
+
+  test('config JSON format is human-readable (2-space indent)', async () => {
+    const config: TuiConfig = {
+      connections: [
+        { name: 'local', serverUrl: 'http://localhost:8080', auth: { type: 'none' } },
+      ],
+    }
+
+    mkdirSync(testDir, { recursive: true })
+    await Bun.write(testConfigPath, JSON.stringify(config, null, 2))
+
+    const text = await Bun.file(testConfigPath).text()
+    expect(text).toContain('  "connections"')
+  })
+
+  test('config with storeId roundtrips correctly', async () => {
+    const config: TuiConfig = {
+      connections: [
+        { name: 'cloud', serverUrl: 'https://api.fga.dev', storeId: 'store-123', auth: { type: 'oidc', clientId: 'cid', clientSecret: 'cs', tokenUrl: 'https://auth/token' } },
+      ],
+    }
+
+    mkdirSync(testDir, { recursive: true })
+    await Bun.write(testConfigPath, JSON.stringify(config, null, 2))
+
+    const readBack = JSON.parse(await Bun.file(testConfigPath).text())
+    expect(readBack.connections[0].storeId).toBe('store-123')
   })
 })
 
@@ -191,6 +152,17 @@ describe('connectionToConfig', () => {
       clientSecret: 'csecret',
       tokenUrl: 'https://auth.example.com/token',
     })
+  })
+
+  test('preserves storeId in conversion', () => {
+    const saved: SavedConnection = {
+      name: 'cloud',
+      serverUrl: 'https://api.fga.dev',
+      auth: { type: 'none' },
+      storeId: 'store-abc',
+    }
+    const config = connectionToConfig(saved)
+    expect(config.storeId).toBe('store-abc')
   })
 
   test('does not include name in ConnectionConfig', () => {

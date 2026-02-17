@@ -16,9 +16,10 @@ import type { SavedConnection } from './lib/config.ts'
 interface AppProps {
   initialConfig?: ConnectionConfig
   savedConnections?: SavedConnection[]
+  onQuit: () => void
 }
 
-export function App({ initialConfig, savedConnections }: AppProps) {
+export function App({ initialConfig, savedConnections, onQuit }: AppProps) {
   const [view, dispatch] = useReducer(
     navigationReducer,
     initialConfig
@@ -28,6 +29,9 @@ export function App({ initialConfig, savedConnections }: AppProps) {
   const [connected, setConnected] = useState(!!initialConfig)
   const [serverUrl, setServerUrl] = useState<string | undefined>(initialConfig?.serverUrl)
   const [storeName, setStoreName] = useState<string | undefined>(undefined)
+  const [scopedStoreId, setScopedStoreId] = useState<string | undefined>(initialConfig?.storeId)
+  // Counter to force re-mount of view components on navigation
+  const [viewKey, setViewKey] = useState(0)
 
   const clientRef = useRef<OpenFGAClient>(
     initialConfig
@@ -39,32 +43,54 @@ export function App({ initialConfig, savedConnections }: AppProps) {
     clientRef.current = new OpenFGAClient(config)
     setConnected(true)
     setServerUrl(config.serverUrl)
-    dispatch({ type: 'navigate', view: { kind: 'stores' } })
+    setScopedStoreId(config.storeId)
+    if (config.storeId) {
+      dispatch({ type: 'navigate', view: { kind: 'store-overview', storeId: config.storeId } })
+    } else {
+      dispatch({ type: 'navigate', view: { kind: 'stores' } })
+    }
+    setViewKey(k => k + 1)
+  }, [])
+
+  // Let views with modal states (adding, filtering) handle Escape themselves
+  // via the onBack callback. Only handle Escape at App level for views
+  // that don't have their own Escape handling.
+  const handleBack = useCallback(() => {
+    dispatch({ type: 'back' })
+    setViewKey(k => k + 1)
   }, [])
 
   useKeyboard(useCallback((key: { name: string }) => {
     if (key.name === 'escape') {
-      if (view.kind !== 'connect') {
-        dispatch({ type: 'back' })
+      // Views that handle Escape internally (tuples, stores, queries)
+      // will call onBack themselves - don't double-handle here.
+      // Only handle Escape for views without their own Escape handling.
+      if (view.kind === 'store-overview' || view.kind === 'model') {
+        handleBack()
       }
     }
-  }, [view.kind]))
+  }, [view.kind, handleBack]))
 
   return (
     <box flexDirection="column" width="100%" height="100%">
       <Header
         view={view}
         connected={connected}
+        storeName={storeName}
       />
       <box flexGrow={1} flexDirection="column" padding={1}>
         <ViewContent
+          key={viewKey}
           view={view}
           dispatch={dispatch}
           client={clientRef.current}
           serverUrl={serverUrl}
           onConnect={handleConnect}
+          onBack={handleBack}
           setStoreName={setStoreName}
           savedConnections={savedConnections}
+          scopedStoreId={scopedStoreId}
+          onQuit={onQuit}
         />
       </box>
       <StatusBar
@@ -82,11 +108,14 @@ interface ViewContentProps {
   client: OpenFGAClient
   serverUrl?: string
   onConnect: (config: ConnectionConfig) => void
+  onBack: () => void
   setStoreName: (v: string | undefined) => void
   savedConnections?: SavedConnection[]
+  scopedStoreId?: string
+  onQuit: () => void
 }
 
-function ViewContent({ view, dispatch, client, serverUrl, onConnect, setStoreName, savedConnections }: ViewContentProps) {
+function ViewContent({ view, dispatch, client, serverUrl, onConnect, onBack, setStoreName, savedConnections, scopedStoreId, onQuit }: ViewContentProps) {
   switch (view.kind) {
     case 'connect':
       return (
@@ -94,12 +123,14 @@ function ViewContent({ view, dispatch, client, serverUrl, onConnect, setStoreNam
           onConnect={onConnect}
           initialServerUrl={serverUrl}
           savedConnections={savedConnections}
+          onQuit={onQuit}
         />
       )
     case 'stores':
       return (
         <StoresView
           client={client as any}
+          scopedStoreId={scopedStoreId}
           onSelectStore={(storeId, name) => {
             setStoreName(name)
             dispatch({ type: 'navigate', view: { kind: 'store-overview', storeId } })
@@ -119,9 +150,9 @@ function ViewContent({ view, dispatch, client, serverUrl, onConnect, setStoreNam
     case 'model':
       return <ModelViewer client={client as any} storeId={view.storeId} />
     case 'tuples':
-      return <TuplesView client={client as any} storeId={view.storeId} />
+      return <TuplesView client={client as any} storeId={view.storeId} onBack={onBack} />
     case 'queries':
-      return <QueriesView client={client as any} storeId={view.storeId} />
+      return <QueriesView client={client as any} storeId={view.storeId} onBack={onBack} />
     default:
       return <text>Unknown view</text>
   }

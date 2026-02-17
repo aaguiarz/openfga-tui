@@ -2,13 +2,15 @@ import { useState, useCallback } from 'react'
 import { useKeyboard } from '@opentui/react'
 import { FormField } from '../components/form-field.tsx'
 import type { OpenFGAClient } from '../lib/openfga/client.ts'
+import type { ModelPlaceholders } from '../lib/model-placeholders.ts'
 
 interface QueryCheckProps {
   client: OpenFGAClient
   storeId: string
+  placeholders: ModelPlaceholders
 }
 
-export function QueryCheck({ client, storeId }: QueryCheckProps) {
+export function QueryCheck({ client, storeId, placeholders: ph }: QueryCheckProps) {
   const [user, setUser] = useState('')
   const [relation, setRelation] = useState('')
   const [object, setObject] = useState('')
@@ -51,13 +53,13 @@ export function QueryCheck({ client, storeId }: QueryCheckProps) {
       <text fg="#60a5fa" attributes={1}>Check</text>
 
       <FormField label="User">
-        <input value={user} placeholder="user:anne" focused={focusedField === 0} onInput={setUser} onSubmit={handleRun} width={40} />
+        <input value={user} placeholder={ph.user} focused={focusedField === 0} onInput={setUser} onSubmit={handleRun} width={40} />
       </FormField>
       <FormField label="Relation">
-        <input value={relation} placeholder="reader" focused={focusedField === 1} onInput={setRelation} onSubmit={handleRun} width={30} />
+        <input value={relation} placeholder={ph.relation} focused={focusedField === 1} onInput={setRelation} onSubmit={handleRun} width={30} />
       </FormField>
       <FormField label="Object">
-        <input value={object} placeholder="document:budget" focused={focusedField === 2} onInput={setObject} onSubmit={handleRun} width={40} />
+        <input value={object} placeholder={ph.object} focused={focusedField === 2} onInput={setObject} onSubmit={handleRun} width={40} />
       </FormField>
 
       <box height={1} />

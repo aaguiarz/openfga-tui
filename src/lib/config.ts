@@ -7,12 +7,10 @@ export interface SavedConnection {
   name: string
   serverUrl: string
   auth: AuthConfig
+  storeId?: string
 }
 
 export interface TuiConfig {
-  serverUrl?: string
-  auth?: AuthConfig
-  lastStoreId?: string
   connections?: SavedConnection[]
 }
 
@@ -50,6 +48,7 @@ export async function saveConfig(config: TuiConfig): Promise<void> {
 export interface CliArgs {
   serverUrl?: string
   apiKey?: string
+  connection?: string
 }
 
 export function parseCliArgs(argv: string[]): CliArgs {
@@ -64,24 +63,13 @@ export function parseCliArgs(argv: string[]): CliArgs {
       case '--api-key':
         args.apiKey = argv[++i]
         break
+      case '--connection':
+        args.connection = argv[++i]
+        break
     }
   }
 
   return args
-}
-
-export function mergeConfigWithCliArgs(config: TuiConfig, args: CliArgs): TuiConfig {
-  const merged = { ...config }
-
-  if (args.serverUrl) {
-    merged.serverUrl = args.serverUrl
-  }
-
-  if (args.apiKey) {
-    merged.auth = { type: 'api-key', apiKey: args.apiKey }
-  }
-
-  return merged
 }
 
 // --- Saved connections management ---
@@ -111,5 +99,5 @@ export async function deleteConnection(name: string): Promise<void> {
 }
 
 export function connectionToConfig(conn: SavedConnection): ConnectionConfig {
-  return { serverUrl: conn.serverUrl, auth: conn.auth }
+  return { serverUrl: conn.serverUrl, auth: conn.auth, ...(conn.storeId ? { storeId: conn.storeId } : {}) }
 }

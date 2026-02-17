@@ -1,7 +1,7 @@
 import { createCliRenderer } from "@opentui/core"
 import { createRoot } from "@opentui/react"
 import { App } from "./app.tsx"
-import { parseCliArgs, loadConfig, mergeConfigWithCliArgs, loadSavedConnections } from "./lib/config.ts"
+import { parseCliArgs, loadSavedConnections, connectionToConfig } from "./lib/config.ts"
 import type { ConnectionConfig } from "./lib/openfga/types.ts"
 import { setupFgaParser } from "./tree-sitter/setup.ts"
 
@@ -9,19 +9,25 @@ import { setupFgaParser } from "./tree-sitter/setup.ts"
 await setupFgaParser()
 
 const args = parseCliArgs(process.argv.slice(2))
-
-// Load saved config and merge with CLI args
-const savedConfig = await loadConfig()
-const config = mergeConfigWithCliArgs(savedConfig, args)
 const savedConnections = await loadSavedConnections()
 
-// Determine initial state
+// Determine initial config from CLI args
 let initialConfig: ConnectionConfig | undefined
 
-if (config.serverUrl) {
+if (args.connection) {
+  // --connection <name>: auto-connect to a saved connection
+  const conn = savedConnections.find(c => c.name === args.connection)
+  if (conn) {
+    initialConfig = connectionToConfig(conn)
+  } else {
+    console.error(`Connection '${args.connection}' not found. Available: ${savedConnections.map(c => c.name).join(', ') || '(none)'}`)
+    process.exit(1)
+  }
+} else if (args.serverUrl) {
+  // --server-url <url>: auto-connect with inline config
   initialConfig = {
-    serverUrl: config.serverUrl,
-    auth: config.auth || { type: 'none' },
+    serverUrl: args.serverUrl,
+    auth: args.apiKey ? { type: 'api-key', apiKey: args.apiKey } : { type: 'none' },
   }
 }
 
@@ -30,6 +36,11 @@ const renderer = await createCliRenderer({
   useAlternateScreen: true,
 })
 
+const handleQuit = () => {
+  renderer.destroy()
+  process.exit(0)
+}
+
 createRoot(renderer).render(
-  <App initialConfig={initialConfig} savedConnections={savedConnections} />
+  <App initialConfig={initialConfig} savedConnections={savedConnections} onQuit={handleQuit} />
 )

@@ -4,19 +4,31 @@ import { Table } from '../components/table.tsx'
 import { Spinner } from '../components/spinner.tsx'
 import { Confirm } from '../components/confirm.tsx'
 import type { OpenFGAClient } from '../lib/openfga/client.ts'
+import type { AuthorizationModel } from '../lib/openfga/types.ts'
 import { tupleListReducer, getSelectedTuple, getFilteredTuples, formatTupleForDisplay, type TupleListState } from '../lib/tuple-list.ts'
+import { getModelPlaceholders } from '../lib/model-placeholders.ts'
 
 interface TuplesViewProps {
   client: OpenFGAClient
   storeId: string
+  onBack: () => void
 }
 
-export function TuplesView({ client, storeId }: TuplesViewProps) {
+export function TuplesView({ client, storeId, onBack }: TuplesViewProps) {
   const [state, dispatch] = useReducer(tupleListReducer, { status: 'loading' } as TupleListState)
   const [addUser, setAddUser] = useState('')
   const [addRelation, setAddRelation] = useState('')
   const [addObject, setAddObject] = useState('')
   const [addFieldIdx, setAddFieldIdx] = useState(0)
+  const [model, setModel] = useState<AuthorizationModel | undefined>()
+
+  useEffect(() => {
+    client.listAuthorizationModels(storeId, 1).then(res => {
+      if (res.authorization_models?.[0]) setModel(res.authorization_models[0])
+    }).catch(() => {})
+  }, [client, storeId])
+
+  const ph = getModelPlaceholders(model)
 
   const fetchTuples = useCallback(async (continuationToken?: string) => {
     dispatch({ type: 'load' })
@@ -77,6 +89,23 @@ export function TuplesView({ client, storeId }: TuplesViewProps) {
   }, [client, storeId, state, fetchTuples])
 
   useKeyboard(useCallback((key: { name: string }) => {
+    if (key.name === 'escape') {
+      if (state.status === 'adding') {
+        setAddUser('')
+        setAddRelation('')
+        setAddObject('')
+        setAddFieldIdx(0)
+        dispatch({ type: 'cancel-add' })
+      } else if (state.status === 'filtering') {
+        dispatch({ type: 'cancel-filter' })
+      } else if (state.status === 'confirming-delete') {
+        dispatch({ type: 'cancel-delete' })
+      } else {
+        onBack()
+      }
+      return
+    }
+
     if (state.status === 'adding' || state.status === 'filtering' || state.status === 'confirming-delete') {
       return
     }
@@ -106,7 +135,7 @@ export function TuplesView({ client, storeId }: TuplesViewProps) {
         }
         break
     }
-  }, [state, fetchTuples]))
+  }, [state, fetchTuples, onBack]))
 
   if (state.status === 'loading') {
     return <Spinner label="Loading tuples..." />
@@ -149,7 +178,7 @@ export function TuplesView({ client, storeId }: TuplesViewProps) {
             <text fg="#888888" width={10}>User:</text>
             <input
               value={addUser}
-              placeholder="user:anne"
+              placeholder={ph.user}
               focused={addFieldIdx === 0}
               onInput={setAddUser}
               width={40}
@@ -163,7 +192,7 @@ export function TuplesView({ client, storeId }: TuplesViewProps) {
             <text fg="#888888" width={10}>Relation:</text>
             <input
               value={addRelation}
-              placeholder="reader"
+              placeholder={ph.relation}
               focused={addFieldIdx === 1}
               onInput={setAddRelation}
               width={30}
@@ -177,7 +206,7 @@ export function TuplesView({ client, storeId }: TuplesViewProps) {
             <text fg="#888888" width={10}>Object:</text>
             <input
               value={addObject}
-              placeholder="document:budget"
+              placeholder={ph.object}
               focused={addFieldIdx === 2}
               onInput={setAddObject}
               width={40}

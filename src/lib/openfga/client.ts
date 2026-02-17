@@ -47,6 +47,7 @@ async function getOIDCToken(auth: Extract<AuthConfig, { type: 'oidc' }>): Promis
       grant_type: 'client_credentials',
       client_id: auth.clientId,
       client_secret: auth.clientSecret,
+      ...(auth.audience ? { audience: auth.audience } : {}),
     }),
   })
 
@@ -203,13 +204,26 @@ export class OpenFGAClient {
     return this.request<ListUsersResponse>('POST', endpoints.listUsers(storeId), request)
   }
 
-  // Test connection
+  // Test connection - tries listStores first, falls back to auth check
+  // for FGA Cloud where client credentials may not have list:stores permission
   async testConnection(): Promise<boolean> {
     try {
       await this.listStores(1)
       return true
     } catch {
-      return false
+      // listStores may fail with 403 on FGA Cloud (scoped credentials)
+      // Verify we can at least authenticate
+      try {
+        const authHeaders = await getAuthHeaders(this.config.auth)
+        const response = await fetch(this.config.serverUrl, {
+          method: 'GET',
+          headers: authHeaders,
+        })
+        // Any response (even 404) means server is reachable and auth worked
+        return response.status !== 401
+      } catch {
+        return false
+      }
     }
   }
 }

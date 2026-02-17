@@ -4,10 +4,11 @@ import { getBreadcrumb } from '../lib/navigation.ts'
 interface HeaderProps {
   view: View
   connected: boolean
+  storeName?: string
 }
 
-export function Header({ view, connected }: HeaderProps) {
-  const breadcrumb = getBreadcrumb(view)
+export function Header({ view, connected, storeName }: HeaderProps) {
+  const breadcrumb = getBreadcrumb(view, storeName)
   const breadcrumbStr = breadcrumb.join(' > ')
 
   const statusIndicator = connected

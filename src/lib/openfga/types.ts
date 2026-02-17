@@ -2,12 +2,13 @@
 export type AuthConfig =
   | { type: 'none' }
   | { type: 'api-key'; apiKey: string }
-  | { type: 'oidc'; clientId: string; clientSecret: string; tokenUrl: string }
+  | { type: 'oidc'; clientId: string; clientSecret: string; tokenUrl: string; audience?: string }
 
 // Connection configuration
 export interface ConnectionConfig {
   serverUrl: string
   auth: AuthConfig
+  storeId?: string
 }
 
 // Store types

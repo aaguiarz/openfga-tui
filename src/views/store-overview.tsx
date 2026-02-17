@@ -27,15 +27,16 @@ export function StoreOverview({ client, storeId, onNavigate }: StoreOverviewProp
 
     async function fetchStats() {
       try {
-        const [store, models, tuples] = await Promise.all([
-          client.getStore(storeId),
+        // getStore may fail on FGA Cloud (scoped credentials), so fetch it separately
+        const [storeResult, models, tuples] = await Promise.all([
+          client.getStore(storeId).catch(() => undefined),
           client.listAuthorizationModels(storeId, 100),
           client.read(storeId, { page_size: 1 }),
         ])
 
         if (!cancelled) {
           setStats({
-            store,
+            store: storeResult,
             modelCount: models.authorization_models?.length ?? 0,
             tupleCount: tuples.tuples?.length ?? 0,
             loading: false,
@@ -76,7 +77,7 @@ export function StoreOverview({ client, storeId, onNavigate }: StoreOverviewProp
 
   const store = stats.store
   const displayName = store?.name || storeId
-  const displayId = storeId.length > 20 ? storeId.slice(0, 20) + '...' : storeId
+  const displayId = storeId
   const created = store?.created_at ? formatStoreDate(store.created_at) : '...'
   const updated = store?.updated_at ? formatStoreDate(store.updated_at) : '...'
 

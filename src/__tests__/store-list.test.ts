@@ -3,6 +3,7 @@ import {
   storeListReducer,
   getSelectedStore,
   formatStoreDate,
+  createScopedStoreEntry,
   type StoreListState,
 } from '../lib/store-list.ts'
 import type { Store } from '../lib/openfga/types.ts'
@@ -158,5 +159,35 @@ describe('formatStoreDate', () => {
   test('handles empty string', () => {
     const result = formatStoreDate('')
     expect(typeof result).toBe('string')
+  })
+})
+
+describe('createScopedStoreEntry', () => {
+  test('creates a store entry from storeId', () => {
+    const store = createScopedStoreEntry('01K95QAG5CBPAKHKZKTJNNQ157')
+    expect(store.id).toBe('01K95QAG5CBPAKHKZKTJNNQ157')
+    expect(store.name).toBe('01K95QAG5CBPAKHKZKTJNNQ157')
+    expect(store.created_at).toBe('')
+    expect(store.updated_at).toBe('')
+  })
+
+  test('scoped store entry works with storeListReducer', () => {
+    const store = createScopedStoreEntry('store-abc')
+    const state: StoreListState = { status: 'loading' }
+    const result = storeListReducer(state, { type: 'loaded', stores: [store] })
+    expect(result.status).toBe('loaded')
+    if (result.status === 'loaded') {
+      expect(result.stores).toHaveLength(1)
+      expect(result.stores[0].id).toBe('store-abc')
+      expect(result.selectedIndex).toBe(0)
+    }
+  })
+
+  test('scoped store is selectable via getSelectedStore', () => {
+    const store = createScopedStoreEntry('store-xyz')
+    const state: StoreListState = { status: 'loaded', stores: [store], selectedIndex: 0 }
+    const selected = getSelectedStore(state)
+    expect(selected).toBeDefined()
+    expect(selected!.id).toBe('store-xyz')
   })
 })

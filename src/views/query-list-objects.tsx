@@ -2,13 +2,15 @@ import { useState, useCallback } from 'react'
 import { useKeyboard } from '@opentui/react'
 import { FormField } from '../components/form-field.tsx'
 import type { OpenFGAClient } from '../lib/openfga/client.ts'
+import type { ModelPlaceholders } from '../lib/model-placeholders.ts'
 
 interface QueryListObjectsProps {
   client: OpenFGAClient
   storeId: string
+  placeholders: ModelPlaceholders
 }
 
-export function QueryListObjects({ client, storeId }: QueryListObjectsProps) {
+export function QueryListObjects({ client, storeId, placeholders: ph }: QueryListObjectsProps) {
   const [user, setUser] = useState('')
   const [relation, setRelation] = useState('')
   const [objectType, setObjectType] = useState('')
@@ -51,13 +53,13 @@ export function QueryListObjects({ client, storeId }: QueryListObjectsProps) {
       <text fg="#60a5fa" attributes={1}>List Objects</text>
 
       <FormField label="User">
-        <input value={user} placeholder="user:anne" focused={focusedField === 0} onInput={setUser} onSubmit={handleRun} width={40} />
+        <input value={user} placeholder={ph.user} focused={focusedField === 0} onInput={setUser} onSubmit={handleRun} width={40} />
       </FormField>
       <FormField label="Relation">
-        <input value={relation} placeholder="reader" focused={focusedField === 1} onInput={setRelation} onSubmit={handleRun} width={30} />
+        <input value={relation} placeholder={ph.relation} focused={focusedField === 1} onInput={setRelation} onSubmit={handleRun} width={30} />
       </FormField>
       <FormField label="Type">
-        <input value={objectType} placeholder="document" focused={focusedField === 2} onInput={setObjectType} onSubmit={handleRun} width={30} />
+        <input value={objectType} placeholder={ph.objectType} focused={focusedField === 2} onInput={setObjectType} onSubmit={handleRun} width={30} />
       </FormField>
 
       <box height={1} />

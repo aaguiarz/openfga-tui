@@ -4,13 +4,15 @@ import { FormField } from '../components/form-field.tsx'
 import { TreeView } from '../components/tree-view.tsx'
 import type { OpenFGAClient } from '../lib/openfga/client.ts'
 import type { ExpandResponse } from '../lib/openfga/types.ts'
+import type { ModelPlaceholders } from '../lib/model-placeholders.ts'
 
 interface QueryExpandProps {
   client: OpenFGAClient
   storeId: string
+  placeholders: ModelPlaceholders
 }
 
-export function QueryExpand({ client, storeId }: QueryExpandProps) {
+export function QueryExpand({ client, storeId, placeholders: ph }: QueryExpandProps) {
   const [relation, setRelation] = useState('')
   const [object, setObject] = useState('')
   const [focusedField, setFocusedField] = useState(0)
@@ -51,10 +53,10 @@ export function QueryExpand({ client, storeId }: QueryExpandProps) {
       <text fg="#60a5fa" attributes={1}>Expand</text>
 
       <FormField label="Relation">
-        <input value={relation} placeholder="reader" focused={focusedField === 0} onInput={setRelation} onSubmit={handleRun} width={30} />
+        <input value={relation} placeholder={ph.relation} focused={focusedField === 0} onInput={setRelation} onSubmit={handleRun} width={30} />
       </FormField>
       <FormField label="Object">
-        <input value={object} placeholder="document:budget" focused={focusedField === 1} onInput={setObject} onSubmit={handleRun} width={40} />
+        <input value={object} placeholder={ph.object} focused={focusedField === 1} onInput={setObject} onSubmit={handleRun} width={40} />
       </FormField>
 
       <box height={1} />
