@@ -58,7 +58,7 @@ function truncateId(id: string): string {
 export function getViewKeybindHints(view: View): string {
   switch (view.kind) {
     case 'connect':
-      return '[Tab] next field  [Enter] connect'
+      return '[↑↓] select  [Enter] connect  [Tab] next field'
     case 'stores':
       return '[↑↓] navigate  [Enter] select  [c]reate  [d]elete  [r]efresh'
     case 'store-overview':

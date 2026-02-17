@@ -6,7 +6,9 @@ import {
   mergeConfigWithCliArgs,
   loadConfig,
   saveConfig,
+  connectionToConfig,
   type TuiConfig,
+  type SavedConnection,
 } from '../lib/config.ts'
 
 describe('parseCliArgs', () => {
@@ -128,5 +130,76 @@ describe('loadConfig and saveConfig', () => {
 
     const text = await Bun.file(testConfigPath).text()
     expect(text).toContain('  "serverUrl"')
+  })
+
+  test('config with saved connections roundtrips correctly', async () => {
+    const config: TuiConfig = {
+      serverUrl: 'http://localhost:8080',
+      auth: { type: 'none' },
+      connections: [
+        { name: 'local', serverUrl: 'http://localhost:8080', auth: { type: 'none' } },
+        { name: 'prod', serverUrl: 'https://fga.example.com', auth: { type: 'api-key', apiKey: 'key123' } },
+      ],
+    }
+
+    mkdirSync(testDir, { recursive: true })
+    await Bun.write(testConfigPath, JSON.stringify(config, null, 2))
+
+    const readBack = JSON.parse(await Bun.file(testConfigPath).text())
+    expect(readBack.connections).toHaveLength(2)
+    expect(readBack.connections[0].name).toBe('local')
+    expect(readBack.connections[1].name).toBe('prod')
+    expect(readBack.connections[1].auth).toEqual({ type: 'api-key', apiKey: 'key123' })
+  })
+})
+
+describe('connectionToConfig', () => {
+  test('converts SavedConnection to ConnectionConfig', () => {
+    const saved: SavedConnection = {
+      name: 'local',
+      serverUrl: 'http://localhost:8080',
+      auth: { type: 'none' },
+    }
+    const config = connectionToConfig(saved)
+    expect(config).toEqual({
+      serverUrl: 'http://localhost:8080',
+      auth: { type: 'none' },
+    })
+  })
+
+  test('preserves api-key auth in conversion', () => {
+    const saved: SavedConnection = {
+      name: 'staging',
+      serverUrl: 'https://staging.example.com',
+      auth: { type: 'api-key', apiKey: 'my-key' },
+    }
+    const config = connectionToConfig(saved)
+    expect(config.serverUrl).toBe('https://staging.example.com')
+    expect(config.auth).toEqual({ type: 'api-key', apiKey: 'my-key' })
+  })
+
+  test('preserves oidc auth in conversion', () => {
+    const saved: SavedConnection = {
+      name: 'prod',
+      serverUrl: 'https://prod.example.com',
+      auth: { type: 'oidc', clientId: 'cid', clientSecret: 'csecret', tokenUrl: 'https://auth.example.com/token' },
+    }
+    const config = connectionToConfig(saved)
+    expect(config.auth).toEqual({
+      type: 'oidc',
+      clientId: 'cid',
+      clientSecret: 'csecret',
+      tokenUrl: 'https://auth.example.com/token',
+    })
+  })
+
+  test('does not include name in ConnectionConfig', () => {
+    const saved: SavedConnection = {
+      name: 'test',
+      serverUrl: 'http://test:8080',
+      auth: { type: 'none' },
+    }
+    const config = connectionToConfig(saved)
+    expect((config as any).name).toBeUndefined()
   })
 })

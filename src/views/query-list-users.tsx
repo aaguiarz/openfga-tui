@@ -53,16 +53,16 @@ export function QueryListUsers({ client, storeId }: QueryListUsersProps) {
       <text fg="#60a5fa" attributes={1}>List Users</text>
 
       <FormField label="Object Type">
-        <input value={objectType} placeholder="document" focused={focusedField === 0} onInput={setObjectType} onSubmit={handleRun} />
+        <input value={objectType} placeholder="document" focused={focusedField === 0} onInput={setObjectType} onSubmit={handleRun} width={30} />
       </FormField>
       <FormField label="Object ID">
-        <input value={objectId} placeholder="budget" focused={focusedField === 1} onInput={setObjectId} onSubmit={handleRun} />
+        <input value={objectId} placeholder="budget" focused={focusedField === 1} onInput={setObjectId} onSubmit={handleRun} width={40} />
       </FormField>
       <FormField label="Relation">
-        <input value={relation} placeholder="reader" focused={focusedField === 2} onInput={setRelation} onSubmit={handleRun} />
+        <input value={relation} placeholder="reader" focused={focusedField === 2} onInput={setRelation} onSubmit={handleRun} width={30} />
       </FormField>
       <FormField label="User Filter Type">
-        <input value={userFilterType} placeholder="user" focused={focusedField === 3} onInput={setUserFilterType} onSubmit={handleRun} />
+        <input value={userFilterType} placeholder="user" focused={focusedField === 3} onInput={setUserFilterType} onSubmit={handleRun} width={30} />
       </FormField>
 
       <box height={1} />

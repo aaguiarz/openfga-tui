@@ -1,12 +1,19 @@
-import type { AuthConfig } from './openfga/types.ts'
+import type { AuthConfig, ConnectionConfig } from './openfga/types.ts'
 import { join } from 'path'
 import { homedir } from 'os'
 import { mkdirSync, existsSync } from 'fs'
+
+export interface SavedConnection {
+  name: string
+  serverUrl: string
+  auth: AuthConfig
+}
 
 export interface TuiConfig {
   serverUrl?: string
   auth?: AuthConfig
   lastStoreId?: string
+  connections?: SavedConnection[]
 }
 
 const CONFIG_DIR = join(homedir(), '.config', 'openfga-tui')
@@ -75,4 +82,34 @@ export function mergeConfigWithCliArgs(config: TuiConfig, args: CliArgs): TuiCon
   }
 
   return merged
+}
+
+// --- Saved connections management ---
+
+export async function loadSavedConnections(): Promise<SavedConnection[]> {
+  const config = await loadConfig()
+  return config.connections || []
+}
+
+export async function saveConnection(conn: SavedConnection): Promise<void> {
+  const config = await loadConfig()
+  const connections = config.connections || []
+  const idx = connections.findIndex(c => c.name === conn.name)
+  if (idx >= 0) {
+    connections[idx] = conn
+  } else {
+    connections.push(conn)
+  }
+  config.connections = connections
+  await saveConfig(config)
+}
+
+export async function deleteConnection(name: string): Promise<void> {
+  const config = await loadConfig()
+  config.connections = (config.connections || []).filter(c => c.name !== name)
+  await saveConfig(config)
+}
+
+export function connectionToConfig(conn: SavedConnection): ConnectionConfig {
+  return { serverUrl: conn.serverUrl, auth: conn.auth }
 }

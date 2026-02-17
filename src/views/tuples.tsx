@@ -152,6 +152,7 @@ export function TuplesView({ client, storeId }: TuplesViewProps) {
               placeholder="user:anne"
               focused={addFieldIdx === 0}
               onInput={setAddUser}
+              width={40}
               onSubmit={() => {
                 if (addFieldIdx < 2) setAddFieldIdx(addFieldIdx + 1)
                 else handleAddTuple()
@@ -165,6 +166,7 @@ export function TuplesView({ client, storeId }: TuplesViewProps) {
               placeholder="reader"
               focused={addFieldIdx === 1}
               onInput={setAddRelation}
+              width={30}
               onSubmit={() => {
                 if (addFieldIdx < 2) setAddFieldIdx(addFieldIdx + 1)
                 else handleAddTuple()
@@ -178,6 +180,7 @@ export function TuplesView({ client, storeId }: TuplesViewProps) {
               placeholder="document:budget"
               focused={addFieldIdx === 2}
               onInput={setAddObject}
+              width={40}
               onSubmit={handleAddTuple}
             />
           </box>
@@ -201,6 +204,7 @@ export function TuplesView({ client, storeId }: TuplesViewProps) {
             placeholder="Type to filter..."
             focused={true}
             onInput={(val: string) => dispatch({ type: 'set-filter', filter: val })}
+            width={50}
             onSubmit={() => dispatch({ type: 'cancel-filter' })}
           />
         </box>

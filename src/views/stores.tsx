@@ -109,6 +109,7 @@ export function StoresView({ client, onSelectStore }: StoresViewProps) {
             placeholder="my-store"
             focused={true}
             onInput={setCreateName}
+            width={40}
             onSubmit={(name: string) => {
               if (name.trim()) {
                 handleCreateStore(name.trim())

@@ -1,7 +1,7 @@
 import { createCliRenderer } from "@opentui/core"
 import { createRoot } from "@opentui/react"
 import { App } from "./app.tsx"
-import { parseCliArgs, loadConfig, mergeConfigWithCliArgs } from "./lib/config.ts"
+import { parseCliArgs, loadConfig, mergeConfigWithCliArgs, loadSavedConnections } from "./lib/config.ts"
 import type { ConnectionConfig } from "./lib/openfga/types.ts"
 import { setupFgaParser } from "./tree-sitter/setup.ts"
 
@@ -13,6 +13,7 @@ const args = parseCliArgs(process.argv.slice(2))
 // Load saved config and merge with CLI args
 const savedConfig = await loadConfig()
 const config = mergeConfigWithCliArgs(savedConfig, args)
+const savedConnections = await loadSavedConnections()
 
 // Determine initial state
 let initialConfig: ConnectionConfig | undefined
@@ -30,5 +31,5 @@ const renderer = await createCliRenderer({
 })
 
 createRoot(renderer).render(
-  <App initialConfig={initialConfig} />
+  <App initialConfig={initialConfig} savedConnections={savedConnections} />
 )

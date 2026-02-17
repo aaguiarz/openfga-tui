@@ -51,13 +51,13 @@ export function QueryListObjects({ client, storeId }: QueryListObjectsProps) {
       <text fg="#60a5fa" attributes={1}>List Objects</text>
 
       <FormField label="User">
-        <input value={user} placeholder="user:anne" focused={focusedField === 0} onInput={setUser} onSubmit={handleRun} />
+        <input value={user} placeholder="user:anne" focused={focusedField === 0} onInput={setUser} onSubmit={handleRun} width={40} />
       </FormField>
       <FormField label="Relation">
-        <input value={relation} placeholder="reader" focused={focusedField === 1} onInput={setRelation} onSubmit={handleRun} />
+        <input value={relation} placeholder="reader" focused={focusedField === 1} onInput={setRelation} onSubmit={handleRun} width={30} />
       </FormField>
       <FormField label="Type">
-        <input value={objectType} placeholder="document" focused={focusedField === 2} onInput={setObjectType} onSubmit={handleRun} />
+        <input value={objectType} placeholder="document" focused={focusedField === 2} onInput={setObjectType} onSubmit={handleRun} width={30} />
       </FormField>
 
       <box height={1} />

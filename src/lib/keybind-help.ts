@@ -14,8 +14,10 @@ export function getKeybindSections(view: View): KeybindSection[] {
       sections.push({
         title: 'Connection',
         bindings: [
+          { key: '↑ / ↓', description: 'Select saved connection' },
+          { key: 'Enter', description: 'Connect / select' },
           { key: 'Tab / Shift+Tab', description: 'Next / previous field' },
-          { key: 'Enter', description: 'Connect' },
+          { key: 'Esc', description: 'Back to saved list' },
         ],
       })
       break

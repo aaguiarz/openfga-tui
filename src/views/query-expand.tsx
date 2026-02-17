@@ -51,10 +51,10 @@ export function QueryExpand({ client, storeId }: QueryExpandProps) {
       <text fg="#60a5fa" attributes={1}>Expand</text>
 
       <FormField label="Relation">
-        <input value={relation} placeholder="reader" focused={focusedField === 0} onInput={setRelation} onSubmit={handleRun} />
+        <input value={relation} placeholder="reader" focused={focusedField === 0} onInput={setRelation} onSubmit={handleRun} width={30} />
       </FormField>
       <FormField label="Object">
-        <input value={object} placeholder="document:budget" focused={focusedField === 1} onInput={setObject} onSubmit={handleRun} />
+        <input value={object} placeholder="document:budget" focused={focusedField === 1} onInput={setObject} onSubmit={handleRun} width={40} />
       </FormField>
 
       <box height={1} />

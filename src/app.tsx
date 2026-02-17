@@ -11,12 +11,14 @@ import { QueriesView } from './views/queries.tsx'
 import { OpenFGAClient } from './lib/openfga/client.ts'
 import { navigationReducer, type View } from './lib/navigation.ts'
 import type { ConnectionConfig } from './lib/openfga/types.ts'
+import type { SavedConnection } from './lib/config.ts'
 
 interface AppProps {
   initialConfig?: ConnectionConfig
+  savedConnections?: SavedConnection[]
 }
 
-export function App({ initialConfig }: AppProps) {
+export function App({ initialConfig, savedConnections }: AppProps) {
   const [view, dispatch] = useReducer(
     navigationReducer,
     initialConfig
@@ -62,6 +64,7 @@ export function App({ initialConfig }: AppProps) {
           serverUrl={serverUrl}
           onConnect={handleConnect}
           setStoreName={setStoreName}
+          savedConnections={savedConnections}
         />
       </box>
       <StatusBar
@@ -80,15 +83,17 @@ interface ViewContentProps {
   serverUrl?: string
   onConnect: (config: ConnectionConfig) => void
   setStoreName: (v: string | undefined) => void
+  savedConnections?: SavedConnection[]
 }
 
-function ViewContent({ view, dispatch, client, serverUrl, onConnect, setStoreName }: ViewContentProps) {
+function ViewContent({ view, dispatch, client, serverUrl, onConnect, setStoreName, savedConnections }: ViewContentProps) {
   switch (view.kind) {
     case 'connect':
       return (
         <ConnectView
           onConnect={onConnect}
           initialServerUrl={serverUrl}
+          savedConnections={savedConnections}
         />
       )
     case 'stores':

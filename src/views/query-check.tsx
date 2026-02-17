@@ -51,13 +51,13 @@ export function QueryCheck({ client, storeId }: QueryCheckProps) {
       <text fg="#60a5fa" attributes={1}>Check</text>
 
       <FormField label="User">
-        <input value={user} placeholder="user:anne" focused={focusedField === 0} onInput={setUser} onSubmit={handleRun} />
+        <input value={user} placeholder="user:anne" focused={focusedField === 0} onInput={setUser} onSubmit={handleRun} width={40} />
       </FormField>
       <FormField label="Relation">
-        <input value={relation} placeholder="reader" focused={focusedField === 1} onInput={setRelation} onSubmit={handleRun} />
+        <input value={relation} placeholder="reader" focused={focusedField === 1} onInput={setRelation} onSubmit={handleRun} width={30} />
       </FormField>
       <FormField label="Object">
-        <input value={object} placeholder="document:budget" focused={focusedField === 2} onInput={setObject} onSubmit={handleRun} />
+        <input value={object} placeholder="document:budget" focused={focusedField === 2} onInput={setObject} onSubmit={handleRun} width={40} />
       </FormField>
 
       <box height={1} />
