@@ -196,6 +196,28 @@ describe('modelToDsl', () => {
     const dsl = modelToDsl(model)
     expect(dsl).toContain('define viewer: [user, group#member]')
   })
+
+  test('converts a model with conditions', () => {
+    const model: AuthorizationModel = {
+      id: 'model-1',
+      schema_version: '1.1',
+      type_definitions: [{ type: 'user' }],
+      conditions: {
+        non_expired_grant: {
+          name: 'non_expired_grant',
+          expression: 'grant_time + grant_duration > now',
+          parameters: {
+            grant_time: { type_name: 'timestamp' },
+            grant_duration: { type_name: 'duration' },
+          },
+        },
+      },
+    }
+
+    const dsl = modelToDsl(model)
+    expect(dsl).toContain('condition non_expired_grant(grant_time: timestamp, grant_duration: duration) {')
+    expect(dsl).toContain('grant_time + grant_duration > now')
+  })
 })
 
 describe('dslToModel', () => {
@@ -383,5 +405,61 @@ type user`
     expect(parsed.type_definitions[0]!.type).toBe('user')
     expect(parsed.type_definitions[1]!.type).toBe('document')
     expect(parsed.type_definitions[1]!.relations?.owner?.this).toBeDefined()
+  })
+
+  test('parses condition blocks with parameters', () => {
+    const dsl = `model
+  schema 1.1
+
+type user
+
+condition non_expired_grant(grant_time: timestamp, grant_duration: duration) {
+  grant_time + grant_duration > now
+}`
+
+    const model = dslToModel(dsl)
+    expect(model.conditions).toBeDefined()
+    expect(model.conditions?.non_expired_grant?.name).toBe('non_expired_grant')
+    expect(model.conditions?.non_expired_grant?.expression).toBe('grant_time + grant_duration > now')
+    expect(model.conditions?.non_expired_grant?.parameters?.grant_time).toEqual({ type_name: 'timestamp' })
+    expect(model.conditions?.non_expired_grant?.parameters?.grant_duration).toEqual({ type_name: 'duration' })
+  })
+
+  test('roundtrip preserves conditions', () => {
+    const original: AuthorizationModel = {
+      id: 'model-1',
+      schema_version: '1.1',
+      type_definitions: [{ type: 'user' }],
+      conditions: {
+        region_match: {
+          name: 'region_match',
+          expression: 'request_region in allowed_regions',
+          parameters: {
+            request_region: { type_name: 'string' },
+            allowed_regions: {
+              type_name: 'list',
+              generic_types: [{ type_name: 'string' }],
+            },
+          },
+        },
+      },
+    }
+
+    const dsl = modelToDsl(original)
+    const parsed = dslToModel(dsl)
+
+    expect(parsed.conditions).toEqual({
+      region_match: {
+        name: 'region_match',
+        expression: 'request_region in allowed_regions',
+        parameters: {
+          request_region: { type_name: 'string' },
+          allowed_regions: {
+            type_name: 'list',
+            generic_types: [{ type_name: 'string' }],
+          },
+        },
+      },
+    })
   })
 })

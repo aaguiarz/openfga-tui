@@ -23,8 +23,8 @@ export function StoresView({ client, onSelectStore, scopedStoreId }: StoresViewP
     }
     dispatch({ type: 'load' })
     try {
-      const response = await client.listStores()
-      dispatch({ type: 'loaded', stores: response.stores || [] })
+      const stores = await client.listAllStores(100)
+      dispatch({ type: 'loaded', stores })
     } catch (err: any) {
       dispatch({ type: 'error', message: err.message || 'Failed to load stores' })
     }
@@ -116,9 +116,10 @@ export function StoresView({ client, onSelectStore, scopedStoreId }: StoresViewP
             focused={true}
             onInput={setCreateName}
             width={40}
-            onSubmit={(name: string) => {
-              if (name.trim()) {
-                handleCreateStore(name.trim())
+            onSubmit={() => {
+              const name = createName.trim()
+              if (name) {
+                handleCreateStore(name)
               }
               setCreateName('')
               dispatch({ type: 'cancel-create' })

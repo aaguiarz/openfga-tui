@@ -4,6 +4,7 @@ import { Spinner } from '../components/spinner.tsx'
 import type { OpenFGAClient } from '../lib/openfga/client.ts'
 import type { Store } from '../lib/openfga/types.ts'
 import { formatStoreDate } from '../lib/store-list.ts'
+import { formatTupleSummary } from '../lib/store-overview.ts'
 
 interface StoreOverviewProps {
   client: OpenFGAClient
@@ -14,7 +15,8 @@ interface StoreOverviewProps {
 interface StoreStats {
   store?: Store
   modelCount?: number
-  tupleCount?: number
+  tupleSampleCount?: number
+  tupleHasContinuation?: boolean
   loading: boolean
   error?: string
 }
@@ -30,15 +32,16 @@ export function StoreOverview({ client, storeId, onNavigate }: StoreOverviewProp
         // getStore may fail on FGA Cloud (scoped credentials), so fetch it separately
         const [storeResult, models, tuples] = await Promise.all([
           client.getStore(storeId).catch(() => undefined),
-          client.listAuthorizationModels(storeId, 100),
+          client.listAllAuthorizationModels(storeId),
           client.read(storeId, { page_size: 1 }),
         ])
 
         if (!cancelled) {
           setStats({
             store: storeResult,
-            modelCount: models.authorization_models?.length ?? 0,
-            tupleCount: tuples.tuples?.length ?? 0,
+            modelCount: models.length,
+            tupleSampleCount: tuples.tuples?.length ?? 0,
+            tupleHasContinuation: !!tuples.continuation_token,
             loading: false,
           })
         }
@@ -114,7 +117,9 @@ export function StoreOverview({ client, storeId, onNavigate }: StoreOverviewProp
           alignItems="center"
         >
           <text fg="#22c55e" attributes={1}>[t] Tuples</text>
-          <text fg="#888888">{stats.tupleCount ?? '...'} tuples</text>
+          <text fg="#888888">
+            {formatTupleSummary(stats.tupleSampleCount ?? 0, stats.tupleHasContinuation ?? false)}
+          </text>
         </box>
 
         <box

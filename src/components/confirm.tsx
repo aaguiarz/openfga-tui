@@ -7,11 +7,20 @@ interface ConfirmProps {
   onCancel: () => void
 }
 
+export type ConfirmKeyAction = 'confirm' | 'cancel' | 'ignore'
+
+export function resolveConfirmKeyAction(keyName: string): ConfirmKeyAction {
+  if (keyName === 'y') return 'confirm'
+  if (keyName === 'n' || keyName === 'escape' || keyName === 'return') return 'cancel'
+  return 'ignore'
+}
+
 export function Confirm({ message, onConfirm, onCancel }: ConfirmProps) {
   useKeyboard(useCallback((key: { name: string }) => {
-    if (key.name === 'y') {
+    const action = resolveConfirmKeyAction(key.name)
+    if (action === 'confirm') {
       onConfirm()
-    } else {
+    } else if (action === 'cancel') {
       onCancel()
     }
   }, [onConfirm, onCancel]))

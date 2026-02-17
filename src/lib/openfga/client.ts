@@ -1,82 +1,39 @@
 import { endpoints } from './endpoints.ts'
 import type {
-  ConnectionConfig,
+  ApiError,
   AuthConfig,
-  Store,
-  ListStoresResponse,
-  CreateStoreRequest,
   AuthorizationModel,
-  ListAuthorizationModelsResponse,
-  WriteAuthorizationModelRequest,
-  WriteAuthorizationModelResponse,
-  ReadRequest,
-  ReadResponse,
-  WriteRequest,
   CheckRequest,
   CheckResponse,
+  ConnectionConfig,
+  CreateStoreRequest,
   ExpandRequest,
   ExpandResponse,
+  ListAuthorizationModelsResponse,
   ListObjectsRequest,
   ListObjectsResponse,
+  ListStoresResponse,
   ListUsersRequest,
   ListUsersResponse,
-  ApiError,
+  ReadRequest,
+  ReadResponse,
+  Store,
+  WriteAuthorizationModelRequest,
+  WriteAuthorizationModelResponse,
+  WriteRequest,
 } from './types.ts'
 
-// Token cache for OIDC authentication
-interface TokenCache {
+interface TokenCacheEntry {
   accessToken: string
   expiresAt: number
 }
 
-let tokenCache: TokenCache | null = null
-
-async function getOIDCToken(auth: Extract<AuthConfig, { type: 'oidc' }>): Promise<string> {
-  // Check if we have a valid cached token
-  if (tokenCache && tokenCache.expiresAt > Date.now() + 60000) {
-    return tokenCache.accessToken
-  }
-
-  // Fetch new token
-  const response = await fetch(auth.tokenUrl, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/x-www-form-urlencoded',
-    },
-    body: new URLSearchParams({
-      grant_type: 'client_credentials',
-      client_id: auth.clientId,
-      client_secret: auth.clientSecret,
-      ...(auth.audience ? { audience: auth.audience } : {}),
-    }),
-  })
-
-  if (!response.ok) {
-    throw new Error(`Failed to obtain OIDC token: ${response.statusText}`)
-  }
-
-  const data = await response.json()
-  const expiresIn = data.expires_in || 3600
-
-  tokenCache = {
-    accessToken: data.access_token,
-    expiresAt: Date.now() + expiresIn * 1000,
-  }
-
-  return tokenCache.accessToken
+interface TokenEndpointResponse {
+  access_token?: string
+  expires_in?: number
 }
 
-async function getAuthHeaders(auth: AuthConfig): Promise<Record<string, string>> {
-  switch (auth.type) {
-    case 'none':
-      return {}
-    case 'api-key':
-      return { Authorization: `Bearer ${auth.apiKey}` }
-    case 'oidc':
-      const token = await getOIDCToken(auth)
-      return { Authorization: `Bearer ${token}` }
-  }
-}
+const tokenCache = new Map<string, TokenCacheEntry>()
 
 export class OpenFGAClient {
   private config: ConnectionConfig
@@ -85,13 +42,81 @@ export class OpenFGAClient {
     this.config = config
   }
 
+  private async parseJson<T>(response: Response): Promise<T> {
+    const data = await response.json()
+    return data as T
+  }
+
+  private getTokenCacheKey(auth: Extract<AuthConfig, { type: 'oidc' }>): string {
+    return [
+      this.config.serverUrl,
+      auth.tokenUrl,
+      auth.clientId,
+      auth.clientSecret,
+      auth.audience || '',
+    ].join('|')
+  }
+
+  private async getOIDCToken(auth: Extract<AuthConfig, { type: 'oidc' }>): Promise<string> {
+    const cacheKey = this.getTokenCacheKey(auth)
+    const cached = tokenCache.get(cacheKey)
+
+    if (cached && cached.expiresAt > Date.now() + 60_000) {
+      return cached.accessToken
+    }
+
+    const response = await fetch(auth.tokenUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+      },
+      body: new URLSearchParams({
+        grant_type: 'client_credentials',
+        client_id: auth.clientId,
+        client_secret: auth.clientSecret,
+        ...(auth.audience ? { audience: auth.audience } : {}),
+      }),
+    })
+
+    if (!response.ok) {
+      throw new Error(`Failed to obtain OIDC token: ${response.statusText}`)
+    }
+
+    const data = await this.parseJson<TokenEndpointResponse>(response)
+    if (!data.access_token) {
+      throw new Error('Failed to obtain OIDC token: missing access token in response')
+    }
+
+    const expiresIn = typeof data.expires_in === 'number' ? data.expires_in : 3600
+
+    tokenCache.set(cacheKey, {
+      accessToken: data.access_token,
+      expiresAt: Date.now() + (expiresIn * 1000),
+    })
+
+    return data.access_token
+  }
+
+  private async getAuthHeaders(auth: AuthConfig): Promise<Record<string, string>> {
+    switch (auth.type) {
+      case 'none':
+        return {}
+      case 'api-key':
+        return { Authorization: `Bearer ${auth.apiKey}` }
+      case 'oidc': {
+        const token = await this.getOIDCToken(auth)
+        return { Authorization: `Bearer ${token}` }
+      }
+    }
+  }
+
   private async request<T>(
     method: string,
     path: string,
     body?: unknown
   ): Promise<T> {
     const url = `${this.config.serverUrl}${path}`
-    const authHeaders = await getAuthHeaders(this.config.auth)
+    const authHeaders = await this.getAuthHeaders(this.config.auth)
 
     const response = await fetch(url, {
       method,
@@ -103,24 +128,23 @@ export class OpenFGAClient {
     })
 
     if (!response.ok) {
-      let errorData: ApiError
+      let message = `HTTP ${response.status}: ${response.statusText}`
       try {
-        errorData = await response.json()
-      } catch {
-        errorData = {
-          code: 'unknown',
-          message: `HTTP ${response.status}: ${response.statusText}`,
+        const errorData = await this.parseJson<Partial<ApiError>>(response)
+        if (typeof errorData.message === 'string' && errorData.message.trim()) {
+          message = errorData.message
         }
+      } catch {
+        // keep fallback HTTP message
       }
-      throw new Error(errorData.message || `Request failed: ${response.statusText}`)
+      throw new Error(message)
     }
 
-    // Handle 204 No Content
     if (response.status === 204) {
       return {} as T
     }
 
-    return response.json()
+    return this.parseJson<T>(response)
   }
 
   // Store operations
@@ -130,6 +154,19 @@ export class OpenFGAClient {
     if (continuationToken) params.set('continuation_token', continuationToken)
     const query = params.toString() ? `?${params.toString()}` : ''
     return this.request<ListStoresResponse>('GET', `${endpoints.listStores()}${query}`)
+  }
+
+  async listAllStores(pageSize = 100): Promise<Store[]> {
+    const allStores: Store[] = []
+    let continuationToken: string | undefined
+
+    do {
+      const page = await this.listStores(pageSize, continuationToken)
+      allStores.push(...(page.stores || []))
+      continuationToken = page.continuation_token
+    } while (continuationToken)
+
+    return allStores
   }
 
   async createStore(request: CreateStoreRequest): Promise<Store> {
@@ -158,6 +195,19 @@ export class OpenFGAClient {
       'GET',
       `${endpoints.listAuthorizationModels(storeId)}${query}`
     )
+  }
+
+  async listAllAuthorizationModels(storeId: string, pageSize = 100): Promise<AuthorizationModel[]> {
+    const allModels: AuthorizationModel[] = []
+    let continuationToken: string | undefined
+
+    do {
+      const page = await this.listAuthorizationModels(storeId, pageSize, continuationToken)
+      allModels.push(...(page.authorization_models || []))
+      continuationToken = page.continuation_token
+    } while (continuationToken)
+
+    return allModels
   }
 
   async getAuthorizationModel(storeId: string, modelId: string): Promise<{ authorization_model: AuthorizationModel }> {
@@ -204,23 +254,38 @@ export class OpenFGAClient {
     return this.request<ListUsersResponse>('POST', endpoints.listUsers(storeId), request)
   }
 
-  // Test connection - tries listStores first, falls back to auth check
-  // for FGA Cloud where client credentials may not have list:stores permission
+  // Test connection - tries listStores first, then probes a known OpenFGA endpoint.
   async testConnection(): Promise<boolean> {
     try {
       await this.listStores(1)
       return true
     } catch {
-      // listStores may fail with 403 on FGA Cloud (scoped credentials)
-      // Verify we can at least authenticate
       try {
-        const authHeaders = await getAuthHeaders(this.config.auth)
-        const response = await fetch(this.config.serverUrl, {
+        const authHeaders = await this.getAuthHeaders(this.config.auth)
+        const probeUrl = `${this.config.serverUrl}${endpoints.listStores()}?page_size=1`
+        const response = await fetch(probeUrl, {
           method: 'GET',
           headers: authHeaders,
         })
-        // Any response (even 404) means server is reachable and auth worked
-        return response.status !== 401
+
+        if (response.status === 401) {
+          return false
+        }
+
+        if (response.status === 403) {
+          return true
+        }
+
+        if (!response.ok) {
+          return false
+        }
+
+        try {
+          const parsed = await this.parseJson<Partial<ListStoresResponse>>(response)
+          return Array.isArray(parsed.stores)
+        } catch {
+          return false
+        }
       } catch {
         return false
       }
@@ -228,7 +293,7 @@ export class OpenFGAClient {
   }
 }
 
-// Export a function to clear the token cache
+// Exported for tests.
 export function clearTokenCache(): void {
-  tokenCache = null
+  tokenCache.clear()
 }

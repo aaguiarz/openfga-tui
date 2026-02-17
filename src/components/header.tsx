@@ -25,9 +25,6 @@ export function Header({ view, connected, storeName }: HeaderProps) {
       height={1}
       flexDirection="row"
       justifyContent="space-between"
-      borderBottom
-      borderStyle="single"
-      borderColor="#444444"
     >
       <box flexDirection="row" gap={2}>
         <text fg="#60a5fa" attributes={1}>OpenFGA TUI</text>

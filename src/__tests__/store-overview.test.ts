@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'bun:test'
 import { formatStoreDate } from '../lib/store-list.ts'
+import { formatTupleSummary } from '../lib/store-overview.ts'
 
 // Store overview relies on formatStoreDate from store-list and client API calls.
 // The UI component itself uses OpenTUI and can't be unit tested without WASM.
@@ -65,5 +66,11 @@ describe('store overview data formatting', () => {
     const error: StoreStats = { loading: false, error: 'Network error' }
     expect(error.loading).toBe(false)
     expect(error.error).toBe('Network error')
+  })
+
+  test('tuple summary marks sampled values explicitly', () => {
+    expect(formatTupleSummary(0, false)).toBe('0 tuples (sampled)')
+    expect(formatTupleSummary(1, false)).toBe('1 tuple (sampled)')
+    expect(formatTupleSummary(1, true)).toBe('1+ tuples (sampled)')
   })
 })

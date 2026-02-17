@@ -1,21 +1,25 @@
-import type { AuthorizationModel, TypeDefinition } from './types.ts'
+import type {
+  AuthorizationModel,
+  Condition,
+  ConditionParamTypeRef,
+  RelationReference,
+  TypeDefinition,
+  Userset,
+} from './types.ts'
 
 /**
- * Convert an OpenFGA JSON model to DSL format
+ * Convert an OpenFGA JSON model to DSL format.
  */
 export function modelToDsl(model: AuthorizationModel): string {
   const lines: string[] = []
 
-  // Add model header
   lines.push('model')
   lines.push(`  schema ${model.schema_version || '1.1'}`)
   lines.push('')
 
-  // Process each type definition
   for (const typeDef of model.type_definitions || []) {
     lines.push(`type ${typeDef.type}`)
 
-    // Get relations if any
     const relations = typeDef.relations || {}
     const metadata = typeDef.metadata?.relations || {}
 
@@ -24,7 +28,7 @@ export function modelToDsl(model: AuthorizationModel): string {
 
       for (const [relationName, relationDef] of Object.entries(relations)) {
         const relMeta = metadata[relationName]
-        const relationStr = buildRelationString(relationName, relationDef, relMeta)
+        const relationStr = buildRelationString(relationName, relationDef, relMeta?.directly_related_user_types)
         lines.push(`    define ${relationStr}`)
       }
     }
@@ -32,72 +36,83 @@ export function modelToDsl(model: AuthorizationModel): string {
     lines.push('')
   }
 
+  const conditionEntries = Object.entries(model.conditions || {})
+  for (const [conditionName, condition] of conditionEntries) {
+    const params = Object.entries(condition.parameters || {})
+      .map(([paramName, typeRef]) => `${paramName}: ${conditionParamTypeRefToDsl(typeRef)}`)
+      .join(', ')
+
+    const conditionHeader = params
+      ? `condition ${conditionName}(${params}) {`
+      : `condition ${conditionName} {`
+
+    lines.push(conditionHeader)
+
+    const expressionLines = (condition.expression || '').split('\n')
+    if (expressionLines.length === 0) {
+      lines.push('  ')
+    } else {
+      for (const expressionLine of expressionLines) {
+        lines.push(`  ${expressionLine}`)
+      }
+    }
+
+    lines.push('}')
+    lines.push('')
+  }
+
   return lines.join('\n').trim()
 }
 
+function conditionParamTypeRefToDsl(typeRef: ConditionParamTypeRef): string {
+  if (!typeRef.generic_types || typeRef.generic_types.length === 0) {
+    return typeRef.type_name
+  }
+
+  const genericTypes = typeRef.generic_types.map(conditionParamTypeRefToDsl).join(', ')
+  return `${typeRef.type_name}<${genericTypes}>`
+}
+
 /**
- * Build a relation definition string from the relation object
+ * Build a relation definition string from the relation object.
  */
 function buildRelationString(
   name: string,
-  relationDef: any,
-  metadata?: { directly_related_user_types?: Array<{ type: string; relation?: string; wildcard?: object }> }
+  relationDef: Userset,
+  directTypes: RelationReference[] = []
 ): string {
   const parts: string[] = []
 
-  // Get directly assignable types from metadata
-  const directTypes = metadata?.directly_related_user_types || []
-
   if (relationDef.this !== undefined) {
-    // Direct assignment relation
-    const typeStrs = directTypes.map((t: any) => {
-      if (t.wildcard) {
-        return `${t.type}:*`
-      } else if (t.relation) {
-        return `${t.type}#${t.relation}`
-      } else {
-        return t.type
-      }
-    })
-
+    const typeStrs = directTypes.map(relationReferenceToDsl)
     if (typeStrs.length > 0) {
       parts.push(`[${typeStrs.join(', ')}]`)
     }
   }
 
   if (relationDef.computedUserset) {
-    // Computed relation (referencing another relation on same type)
     parts.push(relationDef.computedUserset.relation)
   }
 
   if (relationDef.tupleToUserset) {
-    // Tuple to userset (relation from another object)
-    const ttu = relationDef.tupleToUserset
-    const fromRelation = ttu.tupleset?.relation
-    const computedRelation = ttu.computedUserset?.relation
+    const fromRelation = relationDef.tupleToUserset.tupleset?.relation
+    const computedRelation = relationDef.tupleToUserset.computedUserset?.relation
     if (fromRelation && computedRelation) {
       parts.push(`${computedRelation} from ${fromRelation}`)
     }
   }
 
   if (relationDef.union) {
-    // Union of multiple relations
-    const unionParts = relationDef.union.child?.map((child: any) => {
-      return buildChildRelation(child, directTypes)
-    }) || []
+    const unionParts = relationDef.union.child?.map(child => buildChildRelation(child, directTypes)) || []
     return `${name}: ${unionParts.join(' or ')}`
   }
 
   if (relationDef.intersection) {
-    // Intersection of multiple relations
-    const intersectionParts = relationDef.intersection.child?.map((child: any) => {
-      return buildChildRelation(child, directTypes)
-    }) || []
+    const intersectionParts = relationDef.intersection.child?.map(child => buildChildRelation(child, directTypes)) || []
     return `${name}: ${intersectionParts.join(' and ')}`
   }
 
   if (relationDef.difference) {
-    // Difference (exclusion)
     const base = buildChildRelation(relationDef.difference.base, directTypes)
     const subtract = buildChildRelation(relationDef.difference.subtract, directTypes)
     return `${name}: ${base} but not ${subtract}`
@@ -106,23 +121,22 @@ function buildRelationString(
   return `${name}: ${parts.join(' ')}`
 }
 
+function relationReferenceToDsl(reference: RelationReference): string {
+  if (reference.wildcard) {
+    return `${reference.type}:*`
+  }
+  if (reference.relation) {
+    return `${reference.type}#${reference.relation}`
+  }
+  return reference.type
+}
+
 /**
- * Build a child relation string (for union/intersection/difference)
+ * Build a child relation string (for union/intersection/difference).
  */
-function buildChildRelation(
-  child: any,
-  directTypes: Array<{ type: string; relation?: string; wildcard?: object }>
-): string {
+function buildChildRelation(child: Userset, directTypes: RelationReference[]): string {
   if (child.this !== undefined) {
-    const typeStrs = directTypes.map((t: any) => {
-      if (t.wildcard) {
-        return `${t.type}:*`
-      } else if (t.relation) {
-        return `${t.type}#${t.relation}`
-      } else {
-        return t.type
-      }
-    })
+    const typeStrs = directTypes.map(relationReferenceToDsl)
     return typeStrs.length > 0 ? `[${typeStrs.join(', ')}]` : '[]'
   }
 
@@ -131,9 +145,8 @@ function buildChildRelation(
   }
 
   if (child.tupleToUserset) {
-    const ttu = child.tupleToUserset
-    const fromRelation = ttu.tupleset?.relation
-    const computedRelation = ttu.computedUserset?.relation
+    const fromRelation = child.tupleToUserset.tupleset?.relation
+    const computedRelation = child.tupleToUserset.computedUserset?.relation
     if (fromRelation && computedRelation) {
       return `${computedRelation} from ${fromRelation}`
     }
@@ -143,35 +156,44 @@ function buildChildRelation(
 }
 
 /**
- * Parse DSL format back to JSON model
- * This is a simplified parser - for production use consider using @openfga/syntax-transformer
+ * Parse DSL format back to JSON model.
+ * This parser intentionally covers the subset used in this project,
+ * including condition blocks and typed condition parameters.
  */
 export function dslToModel(dsl: string): Omit<AuthorizationModel, 'id'> {
   const lines = dsl.split('\n')
   let schemaVersion = '1.1'
   const typeDefinitions: TypeDefinition[] = []
+  const conditions: Record<string, Condition> = {}
 
   let currentType: TypeDefinition | null = null
   let inRelations = false
 
-  for (const line of lines) {
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i] ?? ''
     const trimmed = line.trim()
 
-    // Skip empty lines and comments
-    if (!trimmed || trimmed.startsWith('#')) continue
+    if (!trimmed || trimmed.startsWith('#')) {
+      continue
+    }
 
-    // Parse schema version
     if (trimmed.startsWith('schema ')) {
       schemaVersion = trimmed.replace('schema ', '').trim()
       continue
     }
 
-    // Skip 'model' line
-    if (trimmed === 'model') continue
+    if (trimmed === 'model') {
+      continue
+    }
 
-    // Parse type definition
+    if (trimmed.startsWith('condition ')) {
+      const parsed = parseConditionBlock(lines, i)
+      conditions[parsed.condition.name] = parsed.condition
+      i = parsed.nextLineIndex
+      continue
+    }
+
     if (trimmed.startsWith('type ')) {
-      // Save previous type if exists
       if (currentType) {
         typeDefinitions.push(currentType)
       }
@@ -182,7 +204,6 @@ export function dslToModel(dsl: string): Omit<AuthorizationModel, 'id'> {
       continue
     }
 
-    // Parse relations section
     if (trimmed === 'relations') {
       inRelations = true
       if (currentType) {
@@ -192,7 +213,6 @@ export function dslToModel(dsl: string): Omit<AuthorizationModel, 'id'> {
       continue
     }
 
-    // Parse relation definition
     if (trimmed.startsWith('define ') && currentType && inRelations) {
       const definePart = trimmed.replace('define ', '')
       parseRelationDefinition(definePart, currentType)
@@ -200,19 +220,157 @@ export function dslToModel(dsl: string): Omit<AuthorizationModel, 'id'> {
     }
   }
 
-  // Don't forget the last type
   if (currentType) {
     typeDefinitions.push(currentType)
   }
 
-  return {
+  const parsedModel: Omit<AuthorizationModel, 'id'> = {
     schema_version: schemaVersion,
-    type_definitions: typeDefinitions
+    type_definitions: typeDefinitions,
+  }
+
+  if (Object.keys(conditions).length > 0) {
+    parsedModel.conditions = conditions
+  }
+
+  return parsedModel
+}
+
+function parseConditionBlock(
+  lines: string[],
+  startLineIndex: number
+): { condition: Condition; nextLineIndex: number } {
+  const header = (lines[startLineIndex] ?? '').trim()
+  const headerMatch = header.match(/^condition\s+([A-Za-z_][A-Za-z0-9_]*)\s*(?:\((.*)\))?\s*\{\s*$/)
+
+  if (!headerMatch) {
+    throw new Error(`Invalid condition declaration: ${header}`)
+  }
+
+  const conditionName = headerMatch[1]!
+  const rawParams = headerMatch[2]
+
+  const expressionLines: string[] = []
+  let endLineIndex = startLineIndex
+
+  for (let i = startLineIndex + 1; i < lines.length; i++) {
+    const line = lines[i] ?? ''
+    if (line.trim() === '}') {
+      endLineIndex = i
+      break
+    }
+    expressionLines.push(line.trim())
+  }
+
+  if (endLineIndex === startLineIndex) {
+    throw new Error(`Unterminated condition block: ${conditionName}`)
+  }
+
+  const condition: Condition = {
+    name: conditionName,
+    expression: expressionLines.join('\n').trim(),
+  }
+
+  const parameters = parseConditionParameters(rawParams)
+  if (parameters && Object.keys(parameters).length > 0) {
+    condition.parameters = parameters
+  }
+
+  return {
+    condition,
+    nextLineIndex: endLineIndex,
   }
 }
 
+function parseConditionParameters(rawParams: string | undefined): Record<string, ConditionParamTypeRef> | undefined {
+  if (!rawParams || !rawParams.trim()) {
+    return undefined
+  }
+
+  const parsed: Record<string, ConditionParamTypeRef> = {}
+  const parts = splitTopLevel(rawParams, ',')
+
+  for (const part of parts) {
+    const separatorIndex = part.indexOf(':')
+    if (separatorIndex === -1) {
+      throw new Error(`Invalid condition parameter: ${part}`)
+    }
+
+    const paramName = part.slice(0, separatorIndex).trim()
+    const typeExpr = part.slice(separatorIndex + 1).trim()
+    if (!paramName || !typeExpr) {
+      throw new Error(`Invalid condition parameter: ${part}`)
+    }
+
+    parsed[paramName] = parseConditionParamTypeRef(typeExpr)
+  }
+
+  return parsed
+}
+
+function parseConditionParamTypeRef(typeExpr: string): ConditionParamTypeRef {
+  const match = typeExpr.match(/^([A-Za-z_][A-Za-z0-9_]*)(?:<(.*)>)?$/)
+  if (!match) {
+    throw new Error(`Invalid condition type: ${typeExpr}`)
+  }
+
+  const typeName = match[1]!
+  const rawGenericTypes = match[2]
+
+  if (!rawGenericTypes) {
+    return { type_name: typeName }
+  }
+
+  const genericTypes = splitTopLevel(rawGenericTypes, ',').map(part =>
+    parseConditionParamTypeRef(part.trim())
+  )
+
+  return {
+    type_name: typeName,
+    generic_types: genericTypes,
+  }
+}
+
+function splitTopLevel(input: string, delimiter: string): string[] {
+  const result: string[] = []
+  let current = ''
+  let depth = 0
+
+  for (let i = 0; i < input.length; i++) {
+    const ch = input[i]!
+
+    if (ch === '<') {
+      depth++
+      current += ch
+      continue
+    }
+
+    if (ch === '>') {
+      depth = Math.max(0, depth - 1)
+      current += ch
+      continue
+    }
+
+    if (ch === delimiter && depth === 0) {
+      if (current.trim()) {
+        result.push(current.trim())
+      }
+      current = ''
+      continue
+    }
+
+    current += ch
+  }
+
+  if (current.trim()) {
+    result.push(current.trim())
+  }
+
+  return result
+}
+
 /**
- * Parse a single relation definition line
+ * Parse a single relation definition line.
  */
 function parseRelationDefinition(definition: string, typeDef: TypeDefinition): void {
   const colonIndex = definition.indexOf(':')
@@ -225,30 +383,27 @@ function parseRelationDefinition(definition: string, typeDef: TypeDefinition): v
   if (!typeDef.metadata) typeDef.metadata = { relations: {} }
   if (!typeDef.metadata.relations) typeDef.metadata.relations = {}
 
-  // Parse the relation expression
   const { relationDef, directTypes } = parseRelationExpression(relationExpr)
 
   typeDef.relations[relationName] = relationDef
   if (directTypes.length > 0) {
     typeDef.metadata.relations[relationName] = {
-      directly_related_user_types: directTypes
+      directly_related_user_types: directTypes,
     }
   }
 }
 
-// Type for direct types during parsing
 type DirectType = { type: string; relation?: string; wildcard?: Record<string, never> }
 
 /**
- * Parse a relation expression (the part after "define name:")
+ * Parse a relation expression (the part after "define name:").
  */
 function parseRelationExpression(expr: string): {
-  relationDef: any
+  relationDef: Userset
   directTypes: DirectType[]
 } {
   const directTypes: DirectType[] = []
 
-  // Handle "but not" (difference)
   if (expr.includes(' but not ')) {
     const [basePart, subtractPart] = expr.split(' but not ')
     const base = parseRelationExpression(basePart!.trim())
@@ -257,17 +412,16 @@ function parseRelationExpression(expr: string): {
       relationDef: {
         difference: {
           base: base.relationDef,
-          subtract: subtract.relationDef
-        }
+          subtract: subtract.relationDef,
+        },
       },
-      directTypes: [...base.directTypes, ...subtract.directTypes]
+      directTypes: [...base.directTypes, ...subtract.directTypes],
     }
   }
 
-  // Handle "and" (intersection)
   if (expr.includes(' and ')) {
     const parts = expr.split(' and ')
-    const children: any[] = []
+    const children: Userset[] = []
     const allDirectTypes: DirectType[] = []
 
     for (const part of parts) {
@@ -278,14 +432,13 @@ function parseRelationExpression(expr: string): {
 
     return {
       relationDef: { intersection: { child: children } },
-      directTypes: allDirectTypes
+      directTypes: allDirectTypes,
     }
   }
 
-  // Handle "or" (union)
   if (expr.includes(' or ')) {
     const parts = expr.split(' or ')
-    const children: any[] = []
+    const children: Userset[] = []
     const allDirectTypes: DirectType[] = []
 
     for (const part of parts) {
@@ -296,60 +449,56 @@ function parseRelationExpression(expr: string): {
 
     return {
       relationDef: { union: { child: children } },
-      directTypes: allDirectTypes
+      directTypes: allDirectTypes,
     }
   }
 
-  // Handle "from" (tupleToUserset)
   if (expr.includes(' from ')) {
     const [computedRelation, fromRelation] = expr.split(' from ')
     return {
       relationDef: {
         tupleToUserset: {
           tupleset: { relation: fromRelation!.trim() },
-          computedUserset: { relation: computedRelation!.trim() }
-        }
+          computedUserset: { relation: computedRelation!.trim() },
+        },
       },
-      directTypes: []
+      directTypes: [],
     }
   }
 
-  // Handle direct types [type1, type2, ...]
   if (expr.startsWith('[') && expr.includes(']')) {
     const typesMatch = expr.match(/\[([^\]]*)\]/)
     if (typesMatch) {
-      const typesStr = typesMatch[1]!
-      const types = typesStr.split(',').map(t => t.trim()).filter(t => t)
+      const types = typesMatch[1]!
+        .split(',')
+        .map(t => t.trim())
+        .filter(Boolean)
 
       for (const typeStr of types) {
         if (typeStr.includes(':*')) {
-          // Wildcard type
           directTypes.push({
             type: typeStr.replace(':*', ''),
-            wildcard: {} as Record<string, never>
+            wildcard: {},
           })
         } else if (typeStr.includes('#')) {
-          // Type with relation
           const [type, relation] = typeStr.split('#')
           directTypes.push({ type: type!, relation })
         } else {
-          // Simple type
           directTypes.push({ type: typeStr })
         }
       }
 
       return {
         relationDef: { this: {} },
-        directTypes
+        directTypes,
       }
     }
   }
 
-  // Handle computed userset (just a relation name)
-  if (/^[a-z_]+$/.test(expr)) {
+  if (/^[A-Za-z_][A-Za-z0-9_]*$/.test(expr)) {
     return {
       relationDef: { computedUserset: { relation: expr } },
-      directTypes: []
+      directTypes: [],
     }
   }
 

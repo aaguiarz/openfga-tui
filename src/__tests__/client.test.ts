@@ -45,6 +45,15 @@ const testConfig: ConnectionConfig = {
   auth: { type: 'none' },
 }
 
+function getAuthorizationHeader(options: any): string | undefined {
+  const headers = options?.headers
+  if (!headers) return undefined
+  if (typeof headers.get === 'function') {
+    return headers.get('Authorization') ?? undefined
+  }
+  return headers.Authorization
+}
+
 beforeEach(() => {
   globalThis.fetch = originalFetch
   clearTokenCache()
@@ -57,7 +66,7 @@ describe('OpenFGAClient', () => {
   })
 
   test('listStores calls GET /stores', async () => {
-    const responseData = { stores: [{ id: 's1', name: 'test' }] }
+    const responseData = { stores: [{ id: 's1', name: 'test', created_at: '', updated_at: '' }] }
     mockFetch(responseData)
 
     const client = new OpenFGAClient(testConfig)
@@ -223,5 +232,158 @@ describe('OpenFGAClient', () => {
 
     const [url] = (globalThis.fetch as any).mock.calls[0]
     expect(url).toBe('http://localhost:8080/stores/s1/list-users')
+  })
+
+  test('uses separate OIDC token caches per connection config', async () => {
+    globalThis.fetch = mock((input: string | URL, init?: RequestInit) => {
+      const url = String(input)
+
+      if (url === 'https://auth-a.example.com/token') {
+        return Promise.resolve(new Response(JSON.stringify({
+          access_token: 'token-a',
+          expires_in: 3600,
+        }), { status: 200, headers: { 'Content-Type': 'application/json' } }))
+      }
+
+      if (url === 'https://auth-b.example.com/token') {
+        return Promise.resolve(new Response(JSON.stringify({
+          access_token: 'token-b',
+          expires_in: 3600,
+        }), { status: 200, headers: { 'Content-Type': 'application/json' } }))
+      }
+
+      if (url === 'http://server-a.example.com/stores') {
+        expect(getAuthorizationHeader(init)).toBe('Bearer token-a')
+        return Promise.resolve(new Response(JSON.stringify({ stores: [] }), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        }))
+      }
+
+      if (url === 'http://server-b.example.com/stores') {
+        expect(getAuthorizationHeader(init)).toBe('Bearer token-b')
+        return Promise.resolve(new Response(JSON.stringify({ stores: [] }), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        }))
+      }
+
+      throw new Error(`unexpected URL: ${url}`)
+    }) as any
+
+    const clientA = new OpenFGAClient({
+      serverUrl: 'http://server-a.example.com',
+      auth: {
+        type: 'oidc',
+        clientId: 'client-a',
+        clientSecret: 'secret-a',
+        tokenUrl: 'https://auth-a.example.com/token',
+      },
+    })
+
+    const clientB = new OpenFGAClient({
+      serverUrl: 'http://server-b.example.com',
+      auth: {
+        type: 'oidc',
+        clientId: 'client-b',
+        clientSecret: 'secret-b',
+        tokenUrl: 'https://auth-b.example.com/token',
+      },
+    })
+
+    await clientA.listStores()
+    await clientB.listStores()
+
+    const tokenCalls = (globalThis.fetch as any).mock.calls.filter(
+      ([url]: [string]) => String(url).includes('/token')
+    )
+    expect(tokenCalls).toHaveLength(2)
+  })
+
+  test('testConnection rejects non-OpenFGA endpoint fallback', async () => {
+    globalThis.fetch = mock((input: string | URL) => {
+      const url = String(input)
+
+      // Initial listStores(1) call fails
+      if (url === 'http://example.invalid/stores?page_size=1') {
+        return Promise.resolve(new Response(JSON.stringify({ message: 'not found' }), {
+          status: 404,
+          statusText: 'Not Found',
+          headers: { 'Content-Type': 'application/json' },
+        }))
+      }
+
+      // Non-OpenFGA servers often still respond on root
+      if (url === 'http://example.invalid') {
+        return Promise.resolve(new Response(JSON.stringify({ ok: true }), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        }))
+      }
+
+      throw new Error(`unexpected URL: ${url}`)
+    }) as any
+
+    const client = new OpenFGAClient({
+      serverUrl: 'http://example.invalid',
+      auth: { type: 'none' },
+    })
+
+    const result = await client.testConnection()
+    expect(result).toBe(false)
+  })
+
+  test('listAllStores follows continuation tokens', async () => {
+    globalThis.fetch = mock((input: string | URL) => {
+      const url = String(input)
+      if (url === 'http://localhost:8080/stores?page_size=2') {
+        return Promise.resolve(new Response(JSON.stringify({
+          stores: [{ id: 's1', name: 'one', created_at: '', updated_at: '' }],
+          continuation_token: 'next-token',
+        }), { status: 200, headers: { 'Content-Type': 'application/json' } }))
+      }
+      if (url === 'http://localhost:8080/stores?page_size=2&continuation_token=next-token') {
+        return Promise.resolve(new Response(JSON.stringify({
+          stores: [{ id: 's2', name: 'two', created_at: '', updated_at: '' }],
+        }), { status: 200, headers: { 'Content-Type': 'application/json' } }))
+      }
+      throw new Error(`unexpected URL: ${url}`)
+    }) as any
+
+    const client = new OpenFGAClient(testConfig)
+    const stores = await client.listAllStores(2)
+
+    expect(stores.map(s => s.id)).toEqual(['s1', 's2'])
+  })
+
+  test('listAllAuthorizationModels follows continuation tokens', async () => {
+    globalThis.fetch = mock((input: string | URL) => {
+      const url = String(input)
+      if (url === 'http://localhost:8080/stores/s1/authorization-models?page_size=1') {
+        return Promise.resolve(new Response(JSON.stringify({
+          authorization_models: [{
+            id: 'm1',
+            schema_version: '1.1',
+            type_definitions: [{ type: 'user' }],
+          }],
+          continuation_token: 'next-model',
+        }), { status: 200, headers: { 'Content-Type': 'application/json' } }))
+      }
+      if (url === 'http://localhost:8080/stores/s1/authorization-models?page_size=1&continuation_token=next-model') {
+        return Promise.resolve(new Response(JSON.stringify({
+          authorization_models: [{
+            id: 'm2',
+            schema_version: '1.1',
+            type_definitions: [{ type: 'user' }],
+          }],
+        }), { status: 200, headers: { 'Content-Type': 'application/json' } }))
+      }
+      throw new Error(`unexpected URL: ${url}`)
+    }) as any
+
+    const client = new OpenFGAClient(testConfig)
+    const models = await client.listAllAuthorizationModels('s1', 1)
+
+    expect(models.map(m => m.id)).toEqual(['m1', 'm2'])
   })
 })

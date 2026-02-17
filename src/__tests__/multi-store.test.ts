@@ -72,19 +72,19 @@ describe('filterStores', () => {
   test('filters by name', () => {
     const result = filterStores(stores, 'prod')
     expect(result).toHaveLength(1)
-    expect(result[0].name).toBe('production')
+    expect(result[0]!.name).toBe('production')
   })
 
   test('filters by id', () => {
     const result = filterStores(stores, 'store-2')
     expect(result).toHaveLength(1)
-    expect(result[0].name).toBe('staging')
+    expect(result[0]!.name).toBe('staging')
   })
 
   test('filters multiple matches', () => {
     const result = filterStores(stores, 'tion')
     expect(result).toHaveLength(1) // only "production" contains "tion"
-    expect(result[0].name).toBe('production')
+    expect(result[0]!.name).toBe('production')
   })
 
   test('fuzzy filters multiple matches', () => {
@@ -241,7 +241,7 @@ describe('getFilteredStores', () => {
     }
     const filtered = getFilteredStores(state)
     expect(filtered).toHaveLength(1)
-    expect(filtered[0].name).toBe('beta')
+    expect(filtered[0]!.name).toBe('beta')
   })
 })
 
@@ -260,9 +260,9 @@ describe('query history', () => {
     })
     const entries = getStoreHistory(updated, 'store-1')
     expect(entries).toHaveLength(1)
-    expect(entries[0].queryType).toBe('check')
-    expect(entries[0].params.user).toBe('user:anne')
-    expect(entries[0].timestamp).toBeGreaterThan(0)
+    expect(entries[0]!.queryType).toBe('check')
+    expect(entries[0]!.params.user).toBe('user:anne')
+    expect(entries[0]!.timestamp).toBeGreaterThan(0)
   })
 
   test('addQueryToHistory deduplicates same query', () => {
@@ -289,8 +289,8 @@ describe('query history', () => {
     })
     const entries = getStoreHistory(history, 'store-1')
     expect(entries).toHaveLength(2)
-    expect(entries[0].queryType).toBe('expand') // most recent first
-    expect(entries[1].queryType).toBe('check')
+    expect(entries[0]!.queryType).toBe('expand') // most recent first
+    expect(entries[1]!.queryType).toBe('check')
   })
 
   test('addQueryToHistory limits to 10 entries', () => {
@@ -408,9 +408,9 @@ describe('bookmarks', () => {
     ]
     const state = initialBookmarkState(['s3'])
     const sorted = sortStoresWithBookmarks(stores, state)
-    expect(sorted[0].id).toBe('s3')
-    expect(sorted[1].id).toBe('s1')
-    expect(sorted[2].id).toBe('s2')
+    expect(sorted[0]!.id).toBe('s3')
+    expect(sorted[1]!.id).toBe('s1')
+    expect(sorted[2]!.id).toBe('s2')
   })
 
   test('sortStoresWithBookmarks preserves order within groups', () => {
@@ -422,10 +422,10 @@ describe('bookmarks', () => {
     ]
     const state = initialBookmarkState(['s3', 's1'])
     const sorted = sortStoresWithBookmarks(stores, state)
-    expect(sorted[0].id).toBe('s1')
-    expect(sorted[1].id).toBe('s3')
-    expect(sorted[2].id).toBe('s2')
-    expect(sorted[3].id).toBe('s4')
+    expect(sorted[0]!.id).toBe('s1')
+    expect(sorted[1]!.id).toBe('s3')
+    expect(sorted[2]!.id).toBe('s2')
+    expect(sorted[3]!.id).toBe('s4')
   })
 
   test('sortStoresWithBookmarks with no bookmarks preserves order', () => {

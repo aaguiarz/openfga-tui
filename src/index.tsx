@@ -2,6 +2,7 @@ import { createCliRenderer } from "@opentui/core"
 import { createRoot } from "@opentui/react"
 import { App } from "./app.tsx"
 import { parseCliArgs, loadSavedConnections, connectionToConfig } from "./lib/config.ts"
+import type { SavedConnection } from "./lib/config.ts"
 import type { ConnectionConfig } from "./lib/openfga/types.ts"
 import { setupFgaParser } from "./tree-sitter/setup.ts"
 
@@ -9,12 +10,23 @@ import { setupFgaParser } from "./tree-sitter/setup.ts"
 await setupFgaParser()
 
 const args = parseCliArgs(process.argv.slice(2))
-const savedConnections = await loadSavedConnections()
+let savedConnections: SavedConnection[] = []
+let configError: string | undefined
+
+try {
+  savedConnections = await loadSavedConnections()
+} catch (error) {
+  configError = error instanceof Error ? error.message : 'Failed to load configuration'
+}
 
 // Determine initial config from CLI args
 let initialConfig: ConnectionConfig | undefined
 
 if (args.connection) {
+  if (configError) {
+    console.error(configError)
+    process.exit(1)
+  }
   // --connection <name>: auto-connect to a saved connection
   const conn = savedConnections.find(c => c.name === args.connection)
   if (conn) {
@@ -42,5 +54,10 @@ const handleQuit = () => {
 }
 
 createRoot(renderer).render(
-  <App initialConfig={initialConfig} savedConnections={savedConnections} onQuit={handleQuit} />
+  <App
+    initialConfig={initialConfig}
+    savedConnections={savedConnections}
+    configError={configError}
+    onQuit={handleQuit}
+  />
 )

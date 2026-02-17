@@ -14,10 +14,18 @@ export interface ConnectViewProps {
   savedConnections?: SavedConnection[]
   initialServerUrl?: string
   initialAuthType?: AuthType
+  configError?: string
   onQuit: () => void
 }
 
-export function ConnectView({ onConnect, savedConnections, initialServerUrl, initialAuthType, onQuit }: ConnectViewProps) {
+export function ConnectView({
+  onConnect,
+  savedConnections,
+  initialServerUrl,
+  initialAuthType,
+  configError,
+  onQuit,
+}: ConnectViewProps) {
   const hasSaved = savedConnections && savedConnections.length > 0
   const [mode, setMode] = useState<ConnectMode>(hasSaved ? 'picker' : 'form')
   const [selectedIdx, setSelectedIdx] = useState(0)
@@ -89,14 +97,19 @@ export function ConnectView({ onConnect, savedConnections, initialServerUrl, ini
 
   const handleSaveAndConnect = useCallback(async () => {
     if (!pendingConfig) return
-    if (saveName.trim()) {
-      await saveConnection({
-        name: saveName.trim(),
-        serverUrl: pendingConfig.serverUrl,
-        auth: pendingConfig.auth,
-      })
+    try {
+      if (saveName.trim()) {
+        await saveConnection({
+          name: saveName.trim(),
+          serverUrl: pendingConfig.serverUrl,
+          auth: pendingConfig.auth,
+        })
+      }
+      onConnect(pendingConfig)
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Failed to save connection'
+      dispatchStatus({ type: 'error', message })
     }
-    onConnect(pendingConfig)
   }, [pendingConfig, saveName, onConnect])
 
   const handleSkipSave = useCallback(() => {
@@ -222,6 +235,8 @@ export function ConnectView({ onConnect, savedConnections, initialServerUrl, ini
         </box>
 
         <box height={1} />
+        {configError && <text fg="#f87171">{configError}</text>}
+        {configError && <box height={1} />}
         {statusMessage && <text fg={statusColor}>{statusMessage}</text>}
         <box flexDirection="row" gap={2}>
           <text fg="#666666">[↑↓] select  [Enter] connect  [q] quit</text>
@@ -311,6 +326,7 @@ export function ConnectView({ onConnect, savedConnections, initialServerUrl, ini
 
       <box height={1} />
 
+      {configError && <text fg="#f87171">{configError}</text>}
       {statusMessage && <text fg={statusColor}>{statusMessage}</text>}
 
       <box height={1} />

@@ -178,7 +178,7 @@ describe('createScopedStoreEntry', () => {
     expect(result.status).toBe('loaded')
     if (result.status === 'loaded') {
       expect(result.stores).toHaveLength(1)
-      expect(result.stores[0].id).toBe('store-abc')
+      expect(result.stores[0]!.id).toBe('store-abc')
       expect(result.selectedIndex).toBe(0)
     }
   })

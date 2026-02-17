@@ -22,9 +22,6 @@ export function StatusBar({ view, serverUrl, storeName }: StatusBarProps) {
       height={1}
       flexDirection="row"
       justifyContent="space-between"
-      borderTop
-      borderStyle="single"
-      borderColor="#444444"
     >
       <box flexDirection="row" gap={2}>
         <text fg={connectionColor}>{connectionLabel}</text>

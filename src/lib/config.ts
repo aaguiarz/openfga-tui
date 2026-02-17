@@ -1,7 +1,7 @@
 import type { AuthConfig, ConnectionConfig } from './openfga/types.ts'
 import { join } from 'path'
 import { homedir } from 'os'
-import { mkdirSync, existsSync } from 'fs'
+import { chmodSync, existsSync, mkdirSync } from 'fs'
 
 export interface SavedConnection {
   name: string
@@ -14,35 +14,57 @@ export interface TuiConfig {
   connections?: SavedConnection[]
 }
 
-const CONFIG_DIR = join(homedir(), '.config', 'openfga-tui')
-const CONFIG_PATH = join(CONFIG_DIR, 'config.json')
+const DEFAULT_CONFIG_DIR = join(homedir(), '.config', 'openfga-tui')
+const CONFIG_FILE_NAME = 'config.json'
+
+export const CONFIG_DIR_MODE = 0o700
+export const CONFIG_FILE_MODE = 0o600
+
+function resolveConfigDir(): string {
+  return process.env.OPENFGA_TUI_CONFIG_DIR?.trim() || DEFAULT_CONFIG_DIR
+}
 
 export function getConfigDir(): string {
-  return CONFIG_DIR
+  return resolveConfigDir()
 }
 
 export function getConfigPath(): string {
-  return CONFIG_PATH
+  return join(resolveConfigDir(), CONFIG_FILE_NAME)
 }
 
 export async function loadConfig(): Promise<TuiConfig> {
-  try {
-    const file = Bun.file(CONFIG_PATH)
-    if (!await file.exists()) {
-      return {}
-    }
-    const text = await file.text()
-    return JSON.parse(text) as TuiConfig
-  } catch {
+  const configPath = getConfigPath()
+  const file = Bun.file(configPath)
+
+  if (!(await file.exists())) {
     return {}
+  }
+
+  const text = await file.text()
+  if (!text.trim()) {
+    return {}
+  }
+
+  try {
+    return JSON.parse(text) as TuiConfig
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'unknown parse error'
+    throw new Error(`Failed to parse config file at ${configPath}: ${message}`)
   }
 }
 
 export async function saveConfig(config: TuiConfig): Promise<void> {
-  if (!existsSync(CONFIG_DIR)) {
-    mkdirSync(CONFIG_DIR, { recursive: true })
+  const configDir = getConfigDir()
+  const configPath = getConfigPath()
+
+  if (!existsSync(configDir)) {
+    mkdirSync(configDir, { recursive: true, mode: CONFIG_DIR_MODE })
   }
-  await Bun.write(CONFIG_PATH, JSON.stringify(config, null, 2))
+
+  // Ensure existing dirs/files are not left with lax permissions.
+  chmodSync(configDir, CONFIG_DIR_MODE)
+  await Bun.write(configPath, JSON.stringify(config, null, 2))
+  chmodSync(configPath, CONFIG_FILE_MODE)
 }
 
 export interface CliArgs {

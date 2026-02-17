@@ -1,7 +1,9 @@
 import { describe, expect, test, beforeEach, afterEach } from 'bun:test'
 import { join } from 'path'
-import { mkdirSync, rmSync, existsSync } from 'fs'
+import { mkdirSync, rmSync, existsSync, statSync } from 'fs'
 import {
+  loadConfig,
+  saveConfig,
   parseCliArgs,
   connectionToConfig,
   type TuiConfig,
@@ -49,14 +51,21 @@ describe('parseCliArgs', () => {
 describe('config file format', () => {
   const testDir = join('/tmp/claude', 'openfga-tui-test-config')
   const testConfigPath = join(testDir, 'config.json')
+  const originalConfigDir = process.env.OPENFGA_TUI_CONFIG_DIR
 
   beforeEach(() => {
+    process.env.OPENFGA_TUI_CONFIG_DIR = testDir
     if (existsSync(testDir)) {
       rmSync(testDir, { recursive: true })
     }
   })
 
   afterEach(() => {
+    if (originalConfigDir === undefined) {
+      delete process.env.OPENFGA_TUI_CONFIG_DIR
+    } else {
+      process.env.OPENFGA_TUI_CONFIG_DIR = originalConfigDir
+    }
     if (existsSync(testDir)) {
       rmSync(testDir, { recursive: true })
     }
@@ -111,6 +120,27 @@ describe('config file format', () => {
 
     const readBack = JSON.parse(await Bun.file(testConfigPath).text())
     expect(readBack.connections[0].storeId).toBe('store-123')
+  })
+
+  test('loadConfig surfaces parse errors for invalid JSON', async () => {
+    mkdirSync(testDir, { recursive: true })
+    await Bun.write(testConfigPath, '{invalid-json')
+
+    await expect(loadConfig()).rejects.toThrow()
+  })
+
+  test('saveConfig writes config files with restricted permissions', async () => {
+    const config: TuiConfig = {
+      connections: [{ name: 'local', serverUrl: 'http://localhost:8080', auth: { type: 'none' } }],
+    }
+
+    await saveConfig(config)
+
+    const dirMode = statSync(testDir).mode & 0o777
+    const fileMode = statSync(testConfigPath).mode & 0o777
+
+    expect(dirMode).toBe(0o700)
+    expect(fileMode).toBe(0o600)
   })
 })
 

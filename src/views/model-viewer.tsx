@@ -36,8 +36,7 @@ export function ModelViewer({ client, storeId }: ModelViewerProps) {
     setLoading(true)
     setError(undefined)
     try {
-      const response = await client.listAuthorizationModels(storeId, 100)
-      const fetched = response.authorization_models || []
+      const fetched = await client.listAllAuthorizationModels(storeId, 100)
       setModels(fetched)
       setSelectedIndex(0)
     } catch (err: any) {
