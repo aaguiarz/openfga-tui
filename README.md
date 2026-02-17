@@ -33,11 +33,13 @@ Built with [Bun](https://bun.sh) and [@opentui/react](https://github.com/nicksra
 - **Inline Model Editor** — Split-pane editor with live validation and highlighted preview
 - **Model Graph** — ASCII tree visualization of type/relation relationships
 - **Tuple Management** — Browse, add, delete, filter, and paginate tuples with server-side filtering
-- **Query Operations** — Run Check, Expand, List Objects, and List Users queries
+- **Query Operations** — Run Check, Read, List Objects, and List Users queries
+- **Model-Aware Placeholders** — Form fields show examples matching your actual authorization model
 - **Vim Keybindings** — Optional vim-style navigation (j/k, Ctrl+D/U, Shift+G)
 - **Multi-Store Support** — Quick-switch between stores with fuzzy search, bookmarks, and per-store query history
 - **Keyboard Help** — Press `?` on any screen to see available shortcuts
-- **Config Persistence** — Connection settings saved to `~/.config/openfga-tui/config.json`
+- **Saved Connections** — Save and manage multiple server connections with `~/.config/openfga-tui/config.json`
+- **Authentication** — Supports no-auth, API key, and OIDC client credentials
 
 ## Requirements
 
@@ -59,17 +61,22 @@ bun install
 bun run src/index.tsx
 ```
 
-This opens the connection screen where you can enter your server URL and authentication details.
+This opens the connection screen. If you have saved connections, a picker lets you choose one; otherwise the connection form is shown.
 
 ### Connect via CLI arguments
 
 ```bash
-# Connect with server URL
+# Connect with server URL (no auth)
 bun run src/index.tsx --server-url http://localhost:8080
 
 # Connect with API key authentication
 bun run src/index.tsx --server-url http://localhost:8080 --api-key your-api-key
+
+# Connect using a saved connection by name
+bun run src/index.tsx --connection local
 ```
+
+CLI arguments skip the connection screen and connect directly.
 
 ### Development mode (auto-reload)
 
@@ -88,7 +95,13 @@ bun build --compile src/index.tsx --outfile openfga-tui
 
 ### Connect
 
-Enter your OpenFGA server URL and authentication credentials. Supports no-auth and API key authentication. Press `Enter` to test the connection, then connect to proceed.
+Enter your OpenFGA server URL and authentication credentials. Three authentication modes are supported:
+
+- **None** — No authentication (local development)
+- **API Key** — Bearer token authentication
+- **OIDC** — OpenID Connect client credentials (client ID, client secret, token URL, optional audience)
+
+Press `Enter` to test the connection. On success, you can save the connection with a name for quick access later.
 
 ### Stores
 
@@ -117,9 +130,11 @@ Browse relationship tuples in a table view. Add tuples with `a`, delete with `d`
 
 Run authorization queries across four tabs:
 - **1 — Check**: Test if a user has a relationship with an object
-- **2 — Expand**: View the expansion tree for a relationship
+- **2 — Read**: Read tuples matching optional user/relation/object filters (all fields optional)
 - **3 — List Objects**: Find all objects a user has access to
 - **4 — List Users**: Find all users with access to an object
+
+Form fields show placeholder values derived from your actual authorization model (e.g., if your model defines `document` with an `owner` relation, placeholders show `user:anne`, `owner`, `document:budget` instead of generic examples).
 
 ## Keyboard Shortcuts
 
@@ -129,14 +144,17 @@ Run authorization queries across four tabs:
 |---|---|
 | `Esc` | Go back |
 | `?` | Toggle keyboard help |
+| `q` | Quit (from connection picker) |
 | `Ctrl+C` | Exit |
 
 ### Connect
 
 | Key | Action |
 |---|---|
+| `Up` / `Down` | Navigate saved connections |
+| `Enter` | Connect (picker) / Test connection (form) |
 | `Tab` / `Shift+Tab` | Next / previous field |
-| `Enter` | Test connection |
+| `Esc` | Back to saved connections |
 
 ### Stores
 
@@ -200,20 +218,63 @@ When vim keybindings are enabled, additional keys are available:
 
 ## Configuration
 
-Settings are persisted to `~/.config/openfga-tui/config.json`:
+Connections are saved to `~/.config/openfga-tui/config.json`. The file is created automatically when you save a connection from the UI.
 
 ```json
 {
-  "serverUrl": "http://localhost:8080",
-  "auth": {
-    "type": "api-key",
-    "apiKey": "your-key"
-  },
-  "lastStoreId": "01HXYZ..."
+  "connections": [
+    {
+      "name": "local",
+      "serverUrl": "http://localhost:8080",
+      "auth": { "type": "none" }
+    },
+    {
+      "name": "staging",
+      "serverUrl": "https://staging.example.com",
+      "auth": {
+        "type": "api-key",
+        "apiKey": "your-api-key"
+      }
+    },
+    {
+      "name": "production",
+      "serverUrl": "https://api.example.com",
+      "auth": {
+        "type": "oidc",
+        "clientId": "my-client-id",
+        "clientSecret": "my-client-secret",
+        "tokenUrl": "https://auth.example.com/oauth/token",
+        "audience": "https://api.example.com/"
+      },
+      "storeId": "01HXYZ..."
+    }
+  ]
 }
 ```
 
-CLI arguments override saved configuration.
+### Connection options
+
+| Field | Description |
+|---|---|
+| `name` | Display name for the connection picker |
+| `serverUrl` | OpenFGA server URL |
+| `auth.type` | `none`, `api-key`, or `oidc` |
+| `auth.apiKey` | API key (when `type` is `api-key`) |
+| `auth.clientId` | OIDC client ID (when `type` is `oidc`) |
+| `auth.clientSecret` | OIDC client secret (when `type` is `oidc`) |
+| `auth.tokenUrl` | OIDC token endpoint URL (when `type` is `oidc`) |
+| `auth.audience` | OIDC audience, optional (when `type` is `oidc`) |
+| `storeId` | Optional — scope the connection to a specific store, skipping the store list |
+
+### CLI arguments
+
+| Argument | Description |
+|---|---|
+| `--server-url <url>` | Connect directly to this server URL |
+| `--api-key <key>` | Use API key authentication (requires `--server-url`) |
+| `--connection <name>` | Connect using a saved connection by name |
+
+CLI arguments skip the connection screen and connect directly.
 
 ## Syntax Highlighting
 
@@ -236,15 +297,15 @@ src/
   app.tsx                      # Root component, view routing
 
   views/                       # Screen components
-    connect.tsx                # Connection form
+    connect.tsx                # Connection picker + form
     stores.tsx                 # Store listing
-    store-overview.tsx         # Store detail
+    store-overview.tsx         # Store detail with stats
     model-viewer.tsx           # Model display with highlighting
     model-editor.tsx           # Split-pane inline editor
     tuples.tsx                 # Tuple table management
     queries.tsx                # Query tab container
     query-check.tsx            # Check query
-    query-expand.tsx           # Expand query with tree view
+    query-read.tsx             # Read query (filter tuples)
     query-list-objects.tsx     # List Objects query
     query-list-users.tsx       # List Users query
 
@@ -261,7 +322,8 @@ src/
 
   lib/                         # Pure logic (testable, no UI imports)
     navigation.ts              # View state machine
-    config.ts                  # Config persistence
+    config.ts                  # Config persistence & CLI arg parsing
+    clipboard.ts               # Cross-platform clipboard support
     keybindings.ts             # Keymap definitions
     keybind-help.ts            # Per-view shortcut data
     form-status.ts             # Form validation state
@@ -271,6 +333,7 @@ src/
     fga-highlight.ts           # FGA DSL syntax highlighter
     model-graph.ts             # ASCII model visualization
     model-editor.ts            # Editor state machine
+    model-placeholders.ts      # Model-aware form placeholders
     multi-store.ts             # Store switcher, history, bookmarks
 
     openfga/                   # OpenFGA client library
@@ -279,7 +342,7 @@ src/
       endpoints.ts             # API URL builders
       dsl-converter.ts         # DSL <-> JSON model conversion
 
-  __tests__/                   # Test suite (388 tests)
+  __tests__/                   # Test suite
     client.test.ts
     config.test.ts
     connect.test.ts
@@ -290,6 +353,7 @@ src/
     keybindings.test.ts
     model-editor.test.ts
     model-graph.test.ts
+    model-placeholders.test.ts
     multi-store.test.ts
     navigation.test.ts
     query.test.ts
