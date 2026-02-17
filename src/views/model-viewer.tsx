@@ -1,10 +1,23 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useKeyboard } from '@opentui/react'
 import { Spinner } from '../components/spinner.tsx'
+import { ModelEditor } from './model-editor.tsx'
 import type { OpenFGAClient } from '../lib/openfga/client.ts'
 import type { AuthorizationModel } from '../lib/openfga/types.ts'
 import { modelToDsl } from '../lib/openfga/dsl-converter.ts'
 import { highlightFgaDsl } from '../lib/fga-highlight.ts'
+
+const DEFAULT_MODEL = `model
+  schema 1.1
+
+type user
+
+type document
+  relations
+    define viewer: [user]
+    define editor: [user]
+    define owner: [user]
+`
 
 interface ModelViewerProps {
   client: OpenFGAClient
@@ -16,6 +29,7 @@ export function ModelViewer({ client, storeId }: ModelViewerProps) {
   const [selectedIndex, setSelectedIndex] = useState(0)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | undefined>()
+  const [editing, setEditing] = useState(false)
 
   const fetchModels = useCallback(async () => {
     setLoading(true)
@@ -36,7 +50,22 @@ export function ModelViewer({ client, storeId }: ModelViewerProps) {
     fetchModels()
   }, [fetchModels])
 
+  const handleEdit = useCallback(() => {
+    setEditing(true)
+  }, [])
+
+  const handleEditorSave = useCallback(() => {
+    setEditing(false)
+    fetchModels()
+  }, [fetchModels])
+
+  const handleEditorClose = useCallback(() => {
+    setEditing(false)
+  }, [])
+
   useKeyboard(useCallback((key: { name: string }) => {
+    if (editing) return
+
     switch (key.name) {
       case '[':
         setSelectedIndex(i => Math.max(0, i - 1))
@@ -48,11 +77,9 @@ export function ModelViewer({ client, storeId }: ModelViewerProps) {
         fetchModels()
         break
       case 'y': {
-        // Copy to clipboard
         const model = models[selectedIndex]
         if (model) {
           const dsl = modelToDsl(model)
-          // Use pbcopy on macOS, xclip on Linux
           try {
             const proc = Bun.spawn(['pbcopy'], { stdin: 'pipe' })
             proc.stdin.write(dsl)
@@ -63,16 +90,12 @@ export function ModelViewer({ client, storeId }: ModelViewerProps) {
         }
         break
       }
-      case 'e': {
-        // Open in $EDITOR
-        const model = models[selectedIndex]
-        if (model) {
-          openInEditor(modelToDsl(model))
-        }
+      case 'e':
+      case 'c':
+        handleEdit()
         break
-      }
     }
-  }, [models, selectedIndex, fetchModels]))
+  }, [models, selectedIndex, fetchModels, editing, handleEdit]))
 
   if (loading) {
     return <Spinner label="Loading models..." />
@@ -87,8 +110,40 @@ export function ModelViewer({ client, storeId }: ModelViewerProps) {
     )
   }
 
+  // Inline editor mode
+  if (editing) {
+    const currentDsl = models.length > 0
+      ? modelToDsl(models[selectedIndex]!)
+      : DEFAULT_MODEL
+
+    return (
+      <ModelEditor
+        client={client}
+        storeId={storeId}
+        initialDsl={currentDsl}
+        onSave={handleEditorSave}
+        onClose={handleEditorClose}
+      />
+    )
+  }
+
+  // Empty state - prompt to create a model
   if (models.length === 0) {
-    return <text fg="#666666">No authorization models found.</text>
+    return (
+      <box flexDirection="column" gap={1}>
+        <text fg="#60a5fa" attributes={1}>Authorization Model</text>
+        <text fg="#444444">{'─'.repeat(76)}</text>
+        <box height={1} />
+        <text fg="#888888">No authorization models found.</text>
+        <text fg="#888888">Press [c] to create a new model or [e] to open the editor.</text>
+        <box height={1} />
+        <box flexDirection="row" gap={2}>
+          <text fg="#666666">[c]reate</text>
+          <text fg="#666666">[e]dit</text>
+          <text fg="#666666">[r]efresh</text>
+        </box>
+      </box>
+    )
   }
 
   const currentModel = models[selectedIndex]!
@@ -123,32 +178,11 @@ export function ModelViewer({ client, storeId }: ModelViewerProps) {
       <text fg="#444444">{'─'.repeat(76)}</text>
       <box flexDirection="row" gap={2}>
         <text fg="#666666">[e]dit</text>
-        <text fg="#666666">[v]ersion [{selectedIndex + 1}/{models.length}]</text>
+        <text fg="#666666">[c]reate</text>
+        <text fg="#666666">[[] prev  []] next</text>
         <text fg="#666666">[y]ank</text>
         <text fg="#666666">[r]efresh</text>
       </box>
     </box>
   )
-}
-
-async function openInEditor(content: string): Promise<string | null> {
-  try {
-    const tmpPath = `/tmp/claude/openfga-model-${Date.now()}.fga`
-    await Bun.write(tmpPath, content)
-
-    const editor = Bun.env.EDITOR || Bun.env.VISUAL || 'vi'
-    const proc = Bun.spawn([editor, tmpPath], {
-      stdin: 'inherit',
-      stdout: 'inherit',
-      stderr: 'inherit',
-    })
-    await proc.exited
-
-    const result = await Bun.file(tmpPath).text()
-    const { unlink } = await import('fs/promises')
-    await unlink(tmpPath)
-    return result
-  } catch {
-    return null
-  }
 }

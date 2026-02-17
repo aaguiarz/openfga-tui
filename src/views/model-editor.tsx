@@ -1,6 +1,5 @@
-import { useState, useEffect, useCallback, useReducer } from 'react'
+import { useState, useEffect, useCallback, useReducer, useRef } from 'react'
 import { useKeyboard } from '@opentui/react'
-import { Spinner } from '../components/spinner.tsx'
 import type { OpenFGAClient } from '../lib/openfga/client.ts'
 import { highlightFgaDsl } from '../lib/fga-highlight.ts'
 import {
@@ -23,16 +22,26 @@ interface ModelEditorProps {
 
 export function ModelEditor({ client, storeId, initialDsl, onSave, onClose }: ModelEditorProps) {
   const [state, dispatch] = useReducer(editorReducer, initialDsl, initialEditorState)
-  const [content, setContent] = useState(initialDsl)
+  const textareaRef = useRef<any>(null)
+  const [previewDsl, setPreviewDsl] = useState(initialDsl)
 
-  // Validate on content change (debounced via effect)
+  // Poll content from textarea ref when content changes
+  const handleContentChange = useCallback(() => {
+    if (textareaRef.current) {
+      const text = textareaRef.current.plainText || ''
+      setPreviewDsl(text)
+      dispatch({ type: 'updateContent', dsl: text })
+    }
+  }, [])
+
+  // Validate on content change (debounced)
   useEffect(() => {
     const timer = setTimeout(() => {
-      const result = validateDsl(content)
+      const result = validateDsl(state.currentDsl)
       dispatch({ type: 'validationResult', result })
     }, 500)
     return () => clearTimeout(timer)
-  }, [content])
+  }, [state.currentDsl])
 
   const handleSave = useCallback(async () => {
     if (!canSave(state)) return
@@ -60,13 +69,8 @@ export function ModelEditor({ client, storeId, initialDsl, onSave, onClose }: Mo
     }
   }, [handleSave, onClose]))
 
-  const handleChange = useCallback((value: string) => {
-    setContent(value)
-    dispatch({ type: 'updateContent', dsl: value })
-  }, [])
-
-  const highlightedLines = highlightFgaDsl(state.currentDsl)
-  const lineCount = getLineCount(state.currentDsl)
+  const highlightedLines = highlightFgaDsl(previewDsl)
+  const lineCount = getLineCount(previewDsl)
   const statusText = getEditorStatusText(state)
   const statusColor = getEditorStatusColor(state)
 
@@ -85,8 +89,14 @@ export function ModelEditor({ client, storeId, initialDsl, onSave, onClose }: Mo
         <box flexDirection="column" width="50%">
           <text fg="#888888" attributes={1}>  Editor</text>
           <textarea
-            value={content}
-            onChange={handleChange}
+            ref={textareaRef}
+            initialValue={initialDsl}
+            focused={true}
+            onContentChange={handleContentChange}
+            textColor="#e5e7eb"
+            backgroundColor="#1a1a2e"
+            focusedBackgroundColor="#1a1a2e"
+            focusedTextColor="#e5e7eb"
             flexGrow={1}
           />
         </box>

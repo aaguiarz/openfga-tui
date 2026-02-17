@@ -3,6 +3,10 @@ import { createRoot } from "@opentui/react"
 import { App } from "./app.tsx"
 import { parseCliArgs, loadConfig, mergeConfigWithCliArgs } from "./lib/config.ts"
 import type { ConnectionConfig } from "./lib/openfga/types.ts"
+import { setupFgaParser } from "./tree-sitter/setup.ts"
+
+// Register tree-sitter-fga parser if WASM is available
+await setupFgaParser()
 
 const args = parseCliArgs(process.argv.slice(2))
 

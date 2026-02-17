@@ -64,7 +64,7 @@ export function getViewKeybindHints(view: View): string {
     case 'store-overview':
       return '[m]odel  [t]uples  [q]ueries  [Esc] back'
     case 'model':
-      return '[e]dit  [v]ersion  [y]ank  [r]efresh  [Esc] back'
+      return '[e]dit  [c]reate  [[] prev  []] next  [y]ank  [r]efresh  [Esc] back'
     case 'tuples':
       return '[↑↓] navigate  [a]dd  [d]elete  [r]efresh  [/]filter  [Esc] back'
     case 'queries':

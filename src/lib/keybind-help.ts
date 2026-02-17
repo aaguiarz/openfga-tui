@@ -54,11 +54,10 @@ export function getKeybindSections(view: View): KeybindSection[] {
       sections.push({
         title: 'Actions',
         bindings: [
-          { key: 'e', description: 'Edit in $EDITOR' },
-          { key: 'v', description: 'Select model version' },
+          { key: 'e', description: 'Edit model inline' },
+          { key: 'c', description: 'Create new model' },
           { key: '[ / ]', description: 'Previous / next version' },
           { key: 'y', description: 'Copy DSL to clipboard' },
-          { key: 'g', description: 'Toggle graph view' },
           { key: 'r', description: 'Refresh' },
         ],
       })
