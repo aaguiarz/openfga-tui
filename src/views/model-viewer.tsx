@@ -7,6 +7,7 @@ import type { AuthorizationModel } from '../lib/openfga/types.ts'
 import { modelToDsl } from '../lib/openfga/dsl-converter.ts'
 import { highlightFgaDsl } from '../lib/fga-highlight.ts'
 import { copyToClipboard } from '../lib/clipboard.ts'
+import { renderModelGraph } from '../lib/model-graph.ts'
 
 const DEFAULT_MODEL = `model
   schema 1.1
@@ -34,6 +35,7 @@ export function ModelViewer({ client, storeId }: ModelViewerProps) {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | undefined>()
   const [editing, setEditing] = useState(false)
+  const [showGraph, setShowGraph] = useState(false)
 
   const fetchModels = useCallback(async () => {
     setLoading(true)
@@ -86,6 +88,9 @@ export function ModelViewer({ client, storeId }: ModelViewerProps) {
         }
         break
       }
+      case 'g':
+        setShowGraph(g => !g)
+        break
       case 'e':
       case 'c':
         handleEdit()
@@ -144,12 +149,17 @@ export function ModelViewer({ client, storeId }: ModelViewerProps) {
 
   const currentModel = models[selectedIndex]!
   const dsl = modelToDsl(currentModel)
-  const highlightedLines = highlightFgaDsl(dsl)
+  const highlightedLines = showGraph
+    ? renderModelGraph(currentModel)
+    : highlightFgaDsl(dsl)
 
   return (
     <box flexDirection="column" gap={0}>
       <box flexDirection="row" justifyContent="space-between">
-        <text fg="#60a5fa" attributes={1}>Authorization Model</text>
+        <box flexDirection="row" gap={0}>
+          <text fg="#60a5fa" attributes={1}>Authorization Model</text>
+          {showGraph && <text fg="#888888"> / Graph</text>}
+        </box>
         <text fg="#888888">
           Model {selectedIndex + 1}/{models.length}  ID: {currentModel.id.slice(0, 16)}...
         </text>
@@ -160,7 +170,9 @@ export function ModelViewer({ client, storeId }: ModelViewerProps) {
         <box flexDirection="column">
           {highlightedLines.map((segments, lineIdx) => (
             <box key={lineIdx} flexDirection="row" height={1}>
-              <text fg="#555555" width={4}>{String(lineIdx + 1).padStart(3)} </text>
+              {!showGraph && (
+                <text fg="#555555" width={4}>{String(lineIdx + 1).padStart(3)} </text>
+              )}
               {segments.map((seg, segIdx) => (
                 <text key={segIdx} fg={seg.color} attributes={seg.bold ? 1 : 0}>
                   {seg.text}
@@ -175,6 +187,7 @@ export function ModelViewer({ client, storeId }: ModelViewerProps) {
       <box flexDirection="row" gap={2}>
         <text fg="#666666">[e]dit</text>
         <text fg="#666666">[c]reate</text>
+        <text fg="#666666">[g]raph</text>
         <text fg="#666666">[[] prev  []] next</text>
         <text fg="#666666">[y]ank</text>
         <text fg="#666666">[r]efresh</text>
