@@ -1,11 +1,21 @@
-import { useReducer, useEffect, useCallback, useState } from 'react'
+import { useReducer, useEffect, useCallback, useState, useRef } from 'react'
 import { useKeyboard } from '@opentui/react'
 import { Table } from '../components/table.tsx'
 import { Spinner } from '../components/spinner.tsx'
 import { Confirm } from '../components/confirm.tsx'
 import type { OpenFGAClient } from '../lib/openfga/client.ts'
 import type { AuthorizationModel } from '../lib/openfga/types.ts'
-import { tupleListReducer, getSelectedTuple, getFilteredTuples, formatTupleForDisplay, type TupleListState } from '../lib/tuple-list.ts'
+import {
+  tupleListReducer,
+  getSelectedTuple,
+  formatTupleForDisplay,
+  buildTupleKeyFromFilter,
+  isFilterActive,
+  filterDescription,
+  EMPTY_FILTER,
+  type TupleListState,
+  type ServerFilter,
+} from '../lib/tuple-list.ts'
 import { getModelPlaceholders } from '../lib/model-placeholders.ts'
 
 interface TuplesViewProps {
@@ -22,6 +32,17 @@ export function TuplesView({ client, storeId, onBack }: TuplesViewProps) {
   const [addFieldIdx, setAddFieldIdx] = useState(0)
   const [model, setModel] = useState<AuthorizationModel | undefined>()
 
+  // Server-side filter state
+  const [activeFilter, setActiveFilter] = useState<ServerFilter>(EMPTY_FILTER)
+  const [filterUser, setFilterUser] = useState('')
+  const [filterRelation, setFilterRelation] = useState('')
+  const [filterObject, setFilterObject] = useState('')
+  const [filterFieldIdx, setFilterFieldIdx] = useState(0)
+
+  // Keep a ref to the active filter for use in callbacks
+  const activeFilterRef = useRef(activeFilter)
+  activeFilterRef.current = activeFilter
+
   useEffect(() => {
     client.listAuthorizationModels(storeId, 1).then(res => {
       if (res.authorization_models?.[0]) setModel(res.authorization_models[0])
@@ -30,10 +51,14 @@ export function TuplesView({ client, storeId, onBack }: TuplesViewProps) {
 
   const ph = getModelPlaceholders(model)
 
-  const fetchTuples = useCallback(async (continuationToken?: string) => {
-    dispatch({ type: 'load' })
+  const fetchTuples = useCallback(async (filter: ServerFilter, continuationToken?: string) => {
+    if (!continuationToken) {
+      dispatch({ type: 'load' })
+    }
     try {
+      const tupleKey = buildTupleKeyFromFilter(filter)
       const response = await client.read(storeId, {
+        tuple_key: tupleKey as any,
         page_size: 50,
         continuation_token: continuationToken,
       })
@@ -41,6 +66,7 @@ export function TuplesView({ client, storeId, onBack }: TuplesViewProps) {
         type: 'loaded',
         tuples: response.tuples || [],
         continuationToken: response.continuation_token,
+        append: !!continuationToken,
       })
     } catch (err: any) {
       dispatch({ type: 'error', message: err.message || 'Failed to load tuples' })
@@ -48,7 +74,7 @@ export function TuplesView({ client, storeId, onBack }: TuplesViewProps) {
   }, [client, storeId])
 
   useEffect(() => {
-    fetchTuples()
+    fetchTuples(EMPTY_FILTER)
   }, [fetchTuples])
 
   const handleAddTuple = useCallback(async () => {
@@ -68,7 +94,7 @@ export function TuplesView({ client, storeId, onBack }: TuplesViewProps) {
       setAddObject('')
       setAddFieldIdx(0)
       dispatch({ type: 'cancel-add' })
-      fetchTuples()
+      fetchTuples(activeFilterRef.current)
     } catch (err: any) {
       dispatch({ type: 'error', message: err.message || 'Failed to add tuple' })
     }
@@ -82,13 +108,32 @@ export function TuplesView({ client, storeId, onBack }: TuplesViewProps) {
         deletes: { tuple_keys: [tuple.key] },
       })
       dispatch({ type: 'cancel-delete' })
-      fetchTuples()
+      fetchTuples(activeFilterRef.current)
     } catch (err: any) {
       dispatch({ type: 'error', message: err.message || 'Failed to delete tuple' })
     }
   }, [client, storeId, state, fetchTuples])
 
-  useKeyboard(useCallback((key: { name: string }) => {
+  const handleApplyFilter = useCallback(() => {
+    const newFilter: ServerFilter = {
+      user: filterUser,
+      relation: filterRelation,
+      object: filterObject,
+    }
+    setActiveFilter(newFilter)
+    dispatch({ type: 'cancel-filter' })
+    fetchTuples(newFilter)
+  }, [filterUser, filterRelation, filterObject, fetchTuples])
+
+  const handleClearFilter = useCallback(() => {
+    setActiveFilter(EMPTY_FILTER)
+    setFilterUser('')
+    setFilterRelation('')
+    setFilterObject('')
+    fetchTuples(EMPTY_FILTER)
+  }, [fetchTuples])
+
+  useKeyboard(useCallback((key: { name: string; shift?: boolean }) => {
     if (key.name === 'escape') {
       if (state.status === 'adding') {
         setAddUser('')
@@ -100,13 +145,33 @@ export function TuplesView({ client, storeId, onBack }: TuplesViewProps) {
         dispatch({ type: 'cancel-filter' })
       } else if (state.status === 'confirming-delete') {
         dispatch({ type: 'cancel-delete' })
+      } else if (state.status === 'error') {
+        handleClearFilter()
       } else {
         onBack()
       }
       return
     }
 
-    if (state.status === 'adding' || state.status === 'filtering' || state.status === 'confirming-delete') {
+    if (state.status === 'adding') {
+      if (key.name === 'tab' && key.shift) {
+        setAddFieldIdx(f => (f - 1 + 3) % 3)
+      } else if (key.name === 'tab') {
+        setAddFieldIdx(f => (f + 1) % 3)
+      }
+      return
+    }
+
+    if (state.status === 'confirming-delete') {
+      return
+    }
+
+    if (state.status === 'filtering') {
+      if (key.name === 'tab' && key.shift) {
+        setFilterFieldIdx(f => (f - 1 + 3) % 3)
+      } else if (key.name === 'tab') {
+        setFilterFieldIdx(f => (f + 1) % 3)
+      }
       return
     }
 
@@ -124,18 +189,28 @@ export function TuplesView({ client, storeId, onBack }: TuplesViewProps) {
         dispatch({ type: 'start-delete' })
         break
       case 'r':
-        fetchTuples()
+        fetchTuples(activeFilterRef.current)
         break
       case '/':
+        // Pre-populate filter fields with current active filter
+        setFilterUser(activeFilter.user)
+        setFilterRelation(activeFilter.relation)
+        setFilterObject(activeFilter.object)
+        setFilterFieldIdx(0)
         dispatch({ type: 'start-filter' })
+        break
+      case 'x':
+        if (isFilterActive(activeFilter)) {
+          handleClearFilter()
+        }
         break
       case 'n':
         if ('continuationToken' in state && state.continuationToken) {
-          fetchTuples(state.continuationToken)
+          fetchTuples(activeFilterRef.current, state.continuationToken)
         }
         break
     }
-  }, [state, fetchTuples, onBack]))
+  }, [state, activeFilter, fetchTuples, onBack, handleClearFilter]))
 
   if (state.status === 'loading') {
     return <Spinner label="Loading tuples..." />
@@ -150,8 +225,8 @@ export function TuplesView({ client, storeId, onBack }: TuplesViewProps) {
     )
   }
 
-  const filteredTuples = getFilteredTuples(state)
-  const rows = filteredTuples.map(formatTupleForDisplay)
+  const tuples = state.tuples
+  const rows = tuples.map(formatTupleForDisplay)
   const columns = [
     { header: 'User', width: 24 },
     { header: 'Relation', width: 16 },
@@ -159,21 +234,25 @@ export function TuplesView({ client, storeId, onBack }: TuplesViewProps) {
   ]
 
   const hasContinuation = 'continuationToken' in state && !!state.continuationToken
+  const hasActiveFilter = isFilterActive(activeFilter)
 
   return (
     <box flexDirection="column" gap={0}>
       <box flexDirection="row" justifyContent="space-between">
-        <text fg="#60a5fa" attributes={1}>Tuples</text>
-        <text fg="#888888">{filteredTuples.length} tuples{hasContinuation ? ' (more available)' : ''}</text>
+        <box flexDirection="row" gap={0}>
+          <text fg="#60a5fa" attributes={1}>Tuples</text>
+          {state.status === 'adding' && <text fg="#888888"> / Add Tuple</text>}
+          {state.status === 'filtering' && <text fg="#eab308"> / Filter (all optional)</text>}
+        </box>
+        <text fg="#888888">{tuples.length} tuples{hasContinuation ? ' (more available)' : ''}</text>
       </box>
 
-      {'filter' in state && state.filter && (
-        <text fg="#eab308">Filter: {state.filter}</text>
+      {hasActiveFilter && (
+        <text fg="#eab308">Filter: {filterDescription(activeFilter)}  [x] clear  [/] edit</text>
       )}
 
       {state.status === 'adding' && (
-        <box flexDirection="column" gap={0} border borderStyle="single" borderColor="#444444" padding={1}>
-          <text fg="#60a5fa" attributes={1}>Add Tuple</text>
+        <box flexDirection="column" gap={0}>
           <box flexDirection="row" gap={1} height={1}>
             <text fg="#888888" width={10}>User:</text>
             <input
@@ -213,7 +292,9 @@ export function TuplesView({ client, storeId, onBack }: TuplesViewProps) {
               onSubmit={handleAddTuple}
             />
           </box>
-          <text fg="#666666">[Tab] next field  [Enter] submit  [Esc] cancel</text>
+          <box height={1}>
+            <text fg="#666666">[Tab] next field  [Enter] submit  [Esc] cancel</text>
+          </box>
         </box>
       )}
 
@@ -226,22 +307,49 @@ export function TuplesView({ client, storeId, onBack }: TuplesViewProps) {
       )}
 
       {state.status === 'filtering' && (
-        <box flexDirection="row" gap={1} height={1}>
-          <text fg="#eab308">Filter:</text>
-          <input
-            value={'filter' in state ? state.filter : ''}
-            placeholder="Type to filter..."
-            focused={true}
-            onInput={(val: string) => dispatch({ type: 'set-filter', filter: val })}
-            width={50}
-            onSubmit={() => dispatch({ type: 'cancel-filter' })}
-          />
+        <box flexDirection="column">
+          <box flexDirection="row" gap={1} height={1}>
+            <text fg="#888888" width={10}>User:</text>
+            <input
+              value={filterUser}
+              placeholder={`${ph.user} (optional)`}
+              focused={filterFieldIdx === 0}
+              onInput={setFilterUser}
+              width={40}
+              onSubmit={handleApplyFilter}
+            />
+          </box>
+          <box flexDirection="row" gap={1} height={1}>
+            <text fg="#888888" width={10}>Relation:</text>
+            <input
+              value={filterRelation}
+              placeholder={`${ph.relation} (optional)`}
+              focused={filterFieldIdx === 1}
+              onInput={setFilterRelation}
+              width={30}
+              onSubmit={handleApplyFilter}
+            />
+          </box>
+          <box flexDirection="row" gap={1} height={1}>
+            <text fg="#888888" width={10}>Object:</text>
+            <input
+              value={filterObject}
+              placeholder={`${ph.object} (optional)`}
+              focused={filterFieldIdx === 2}
+              onInput={setFilterObject}
+              width={40}
+              onSubmit={handleApplyFilter}
+            />
+          </box>
+          <box height={1}>
+            <text fg="#666666">[Tab] next  [Enter] apply  [Esc] cancel</text>
+          </box>
         </box>
       )}
 
       <box height={1} />
 
-      {filteredTuples.length === 0 ? (
+      {tuples.length === 0 ? (
         <text fg="#666666">No tuples found. Press 'a' to add one.</text>
       ) : (
         <Table

@@ -8,10 +8,11 @@ import { storeListReducer, getSelectedStore, formatStoreDate, createScopedStoreE
 interface StoresViewProps {
   client: OpenFGAClient
   onSelectStore: (storeId: string, storeName: string) => void
+  onBack: () => void
   scopedStoreId?: string
 }
 
-export function StoresView({ client, onSelectStore, scopedStoreId }: StoresViewProps) {
+export function StoresView({ client, onSelectStore, onBack, scopedStoreId }: StoresViewProps) {
   const [state, dispatch] = useReducer(storeListReducer, { status: 'loading' } as StoreListState)
   const [createName, setCreateName] = useState('')
 
@@ -55,6 +56,18 @@ export function StoresView({ client, onSelectStore, scopedStoreId }: StoresViewP
   }, [client, state, fetchStores])
 
   useKeyboard(useCallback((key: { name: string }) => {
+    if (key.name === 'escape') {
+      if (state.status === 'creating') {
+        setCreateName('')
+        dispatch({ type: 'cancel-create' })
+      } else if (state.status === 'confirming-delete') {
+        dispatch({ type: 'cancel-delete' })
+      } else {
+        onBack()
+      }
+      return
+    }
+
     if (state.status === 'creating') {
       return // Let the input handle keys
     }
@@ -84,7 +97,7 @@ export function StoresView({ client, onSelectStore, scopedStoreId }: StoresViewP
         fetchStores()
         break
     }
-  }, [state, onSelectStore, fetchStores]))
+  }, [state, onSelectStore, onBack, fetchStores]))
 
   if (state.status === 'loading') {
     return <Spinner label="Loading stores..." />

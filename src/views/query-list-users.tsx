@@ -42,11 +42,11 @@ export function QueryListUsers({ client, storeId, placeholders: ph }: QueryListU
     }
   }, [client, storeId, objectType, objectId, relation, userFilterType])
 
-  useKeyboard(useCallback((key: { name: string }) => {
-    if (key.name === 'tab') {
-      setFocusedField(f => (f + 1) % 4)
-    } else if (key.name === 'shift+tab') {
+  useKeyboard(useCallback((key: { name: string; shift?: boolean }) => {
+    if (key.name === 'tab' && key.shift) {
       setFocusedField(f => (f - 1 + 4) % 4)
+    } else if (key.name === 'tab') {
+      setFocusedField(f => (f + 1) % 4)
     }
   }, []))
 

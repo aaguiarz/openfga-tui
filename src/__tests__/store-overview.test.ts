@@ -1,6 +1,5 @@
 import { describe, expect, test } from 'bun:test'
 import { formatStoreDate } from '../lib/store-list.ts'
-import { formatTupleSummary } from '../lib/store-overview.ts'
 
 // Store overview relies on formatStoreDate from store-list and client API calls.
 // The UI component itself uses OpenTUI and can't be unit tested without WASM.
@@ -35,27 +34,23 @@ describe('store overview data formatting', () => {
     interface StoreStats {
       loading: boolean
       modelCount?: number
-      tupleCount?: number
       error?: string
     }
     const initial: StoreStats = { loading: true }
     expect(initial.loading).toBe(true)
     expect(initial.modelCount).toBeUndefined()
-    expect(initial.tupleCount).toBeUndefined()
     expect(initial.error).toBeUndefined()
   })
 
-  test('stats loaded state has counts', () => {
+  test('stats loaded state has model count', () => {
     interface StoreStats {
       loading: boolean
       modelCount?: number
-      tupleCount?: number
       error?: string
     }
-    const loaded: StoreStats = { loading: false, modelCount: 3, tupleCount: 42 }
+    const loaded: StoreStats = { loading: false, modelCount: 3 }
     expect(loaded.loading).toBe(false)
     expect(loaded.modelCount).toBe(3)
-    expect(loaded.tupleCount).toBe(42)
   })
 
   test('stats error state has message', () => {
@@ -66,11 +61,5 @@ describe('store overview data formatting', () => {
     const error: StoreStats = { loading: false, error: 'Network error' }
     expect(error.loading).toBe(false)
     expect(error.error).toBe('Network error')
-  })
-
-  test('tuple summary marks sampled values explicitly', () => {
-    expect(formatTupleSummary(0, false)).toBe('0 tuples (sampled)')
-    expect(formatTupleSummary(1, false)).toBe('1 tuple (sampled)')
-    expect(formatTupleSummary(1, true)).toBe('1+ tuples (sampled)')
   })
 })

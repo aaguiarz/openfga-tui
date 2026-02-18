@@ -18,6 +18,9 @@ type document
     define viewer: [user]
     define editor: [user]
     define owner: [user]
+    
+    define can_view : viewer or can_edit
+    define can_edit : editor or owner
 `
 
 interface ModelViewerProps {

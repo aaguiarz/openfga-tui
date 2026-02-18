@@ -40,11 +40,11 @@ export function QueryExpand({ client, storeId, placeholders: ph }: QueryExpandPr
     }
   }, [client, storeId, relation, object])
 
-  useKeyboard(useCallback((key: { name: string }) => {
-    if (key.name === 'tab') {
-      setFocusedField(f => (f + 1) % 2)
-    } else if (key.name === 'shift+tab') {
+  useKeyboard(useCallback((key: { name: string; shift?: boolean }) => {
+    if (key.name === 'tab' && key.shift) {
       setFocusedField(f => (f - 1 + 2) % 2)
+    } else if (key.name === 'tab') {
+      setFocusedField(f => (f + 1) % 2)
     }
   }, []))
 

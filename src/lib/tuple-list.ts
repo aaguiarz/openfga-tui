@@ -1,16 +1,53 @@
 import type { Tuple } from './openfga/types.ts'
 
+export interface ServerFilter {
+  user: string
+  relation: string
+  object: string
+}
+
+export const EMPTY_FILTER: ServerFilter = { user: '', relation: '', object: '' }
+
+export function isFilterActive(filter: ServerFilter): boolean {
+  return !!(filter.user.trim() || filter.relation.trim() || filter.object.trim())
+}
+
+export function filterDescription(filter: ServerFilter): string {
+  const parts: string[] = []
+  if (filter.user.trim()) parts.push(`user=${filter.user.trim()}`)
+  if (filter.relation.trim()) parts.push(`relation=${filter.relation.trim()}`)
+  if (filter.object.trim()) parts.push(`object=${filter.object.trim()}`)
+  return parts.join(', ')
+}
+
+// OpenFGA requires user/object in "type:id" format. If the user types just
+// "document" (no colon), treat it as "document:" meaning "all of this type".
+function ensureTypeFormat(value: string): string {
+  const trimmed = value.trim()
+  return trimmed && !trimmed.includes(':') ? `${trimmed}:` : trimmed
+}
+
+export function buildTupleKeyFromFilter(filter: ServerFilter): Record<string, string> | undefined {
+  const key: Record<string, string> = {}
+  const user = ensureTypeFormat(filter.user)
+  if (user) key.user = user
+  if (filter.relation.trim()) key.relation = filter.relation.trim()
+  const object = ensureTypeFormat(filter.object)
+  if (object) key.object = object
+  return Object.keys(key).length > 0 ? key : undefined
+}
+
 export type TupleListState =
   | { status: 'loading' }
-  | { status: 'loaded'; tuples: Tuple[]; selectedIndex: number; continuationToken?: string; filter: string }
+  | { status: 'loaded'; tuples: Tuple[]; selectedIndex: number; continuationToken?: string }
   | { status: 'error'; message: string }
-  | { status: 'adding'; tuples: Tuple[]; selectedIndex: number; continuationToken?: string; filter: string }
-  | { status: 'confirming-delete'; tuples: Tuple[]; selectedIndex: number; continuationToken?: string; filter: string }
-  | { status: 'filtering'; tuples: Tuple[]; selectedIndex: number; continuationToken?: string; filter: string }
+  | { status: 'adding'; tuples: Tuple[]; selectedIndex: number; continuationToken?: string }
+  | { status: 'confirming-delete'; tuples: Tuple[]; selectedIndex: number; continuationToken?: string }
+  | { status: 'filtering'; tuples: Tuple[]; selectedIndex: number; continuationToken?: string }
 
 export type TupleListAction =
   | { type: 'load' }
-  | { type: 'loaded'; tuples: Tuple[]; continuationToken?: string }
+  | { type: 'loaded'; tuples: Tuple[]; continuationToken?: string; append?: boolean }
   | { type: 'error'; message: string }
   | { type: 'move-up' }
   | { type: 'move-down' }
@@ -20,7 +57,6 @@ export type TupleListAction =
   | { type: 'cancel-delete' }
   | { type: 'start-filter' }
   | { type: 'cancel-filter' }
-  | { type: 'set-filter'; filter: string }
 
 export function tupleListReducer(state: TupleListState, action: TupleListAction): TupleListState {
   switch (action.type) {
@@ -28,12 +64,21 @@ export function tupleListReducer(state: TupleListState, action: TupleListAction)
       return { status: 'loading' }
 
     case 'loaded':
+      if (action.append && 'tuples' in state) {
+        const merged = [...state.tuples, ...action.tuples]
+        return {
+          ...state,
+          status: 'loaded',
+          tuples: merged,
+          selectedIndex: state.selectedIndex,
+          continuationToken: action.continuationToken,
+        }
+      }
       return {
         status: 'loaded',
         tuples: action.tuples,
         selectedIndex: 0,
         continuationToken: action.continuationToken,
-        filter: ('filter' in state) ? state.filter : '',
       }
 
     case 'error':
@@ -71,30 +116,14 @@ export function tupleListReducer(state: TupleListState, action: TupleListAction)
     case 'cancel-filter':
       if (state.status !== 'filtering') return state
       return { ...state, status: 'loaded' }
-
-    case 'set-filter':
-      if (!('filter' in state)) return state
-      return { ...state, filter: action.filter }
   }
 }
 
 export function getSelectedTuple(state: TupleListState): Tuple | undefined {
   if ('tuples' in state) {
-    return getFilteredTuples(state)[state.selectedIndex]
+    return state.tuples[state.selectedIndex]
   }
   return undefined
-}
-
-export function getFilteredTuples(state: TupleListState): Tuple[] {
-  if (!('tuples' in state)) return []
-  if (!state.filter) return state.tuples
-
-  const filter = state.filter.toLowerCase()
-  return state.tuples.filter(t =>
-    t.key.user.toLowerCase().includes(filter) ||
-    t.key.relation.toLowerCase().includes(filter) ||
-    t.key.object.toLowerCase().includes(filter)
-  )
 }
 
 export function formatTupleForDisplay(tuple: Tuple): [string, string, string] {

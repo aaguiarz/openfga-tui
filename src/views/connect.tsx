@@ -121,7 +121,7 @@ export function ConnectView({
   // Total items in picker: saved connections + "New connection..."
   const pickerItemCount = (savedConnections?.length || 0) + 1
 
-  useKeyboard(useCallback((key: { name: string }) => {
+  useKeyboard(useCallback((key: { name: string; shift?: boolean }) => {
     if (mode === 'picker') {
       if (key.name === 'up' || key.name === 'k') {
         setSelectedIdx(i => Math.max(0, i - 1))
@@ -141,10 +141,10 @@ export function ConnectView({
     } else if (mode === 'form') {
       if (key.name === 'return') {
         handleFormConnect()
+      } else if (key.name === 'tab' && key.shift) {
+        setFocusedField(f => (f - 1 + fieldCount) % fieldCount)
       } else if (key.name === 'tab') {
         setFocusedField(f => (f + 1) % fieldCount)
-      } else if (key.name === 'shift+tab') {
-        setFocusedField(f => (f - 1 + fieldCount) % fieldCount)
       } else if (key.name === 'escape' && hasSaved) {
         setMode('picker')
         dispatchStatus({ type: 'reset' })

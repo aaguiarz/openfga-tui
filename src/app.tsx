@@ -160,6 +160,7 @@ function ViewContent({
             setStoreName(name)
             dispatch({ type: 'navigate', view: { kind: 'store-overview', storeId } })
           }}
+          onBack={onBack}
         />
       )
     case 'store-overview':
